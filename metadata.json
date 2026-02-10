@@ -1,0 +1,5 @@
+{
+  "name": "WeCom Task Master",
+  "description": "An enterprise task management dashboard for WeCom, featuring strict state machine flows for task verification and rejection.",
+  "requestFramePermissions": []
+}
