@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash start.sh integrated)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(nslookup:*)",
+      "Bash(host:*)",
+      "Bash(ls:*)",
+      "Bash(kill 99644)",
+      "Bash(kill 99613)",
+      "Bash(xargs kill:*)",
+      "Bash(cat:*)",
+      "Bash(tail:*)"
+    ]
+  }
+}

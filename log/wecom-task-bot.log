@@ -1,0 +1,2889 @@
+[manual][manual-test-trace][logger.file.test][2026-02-11T06:16:41.391Z] {
+  "hello": "world"
+}
+[app][4616fc72-81c9-4429-8c26-07603cd72802][startup.success][2026-02-11T06:20:46.676Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[db][55b1a1c8-d3ce-43f1-bdc7-671ceb77f02e][connect.success][2026-02-11T06:20:46.680Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][bad296b1-1c7b-4811-93a5-6b62def675eb][schema.init.success][2026-02-11T06:20:46.688Z] {
+  "table": "tasks"
+}
+[app][c509666b-270e-4431-829c-1649737d5805][startup.success][2026-02-11T06:21:48.427Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[db][663cdfa0-bee1-4af1-8b51-03f3b45d2fb1][connect.success][2026-02-11T06:21:48.431Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][d3ce15ff-bf29-4f2a-bddb-51ffd1010826][schema.init.success][2026-02-11T06:21:48.442Z] {
+  "table": "tasks"
+}
+[http-global][159c3874-3844-4ee5-b91b-8c9666e41ee7][request.in][2026-02-11T06:21:50.698Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][159c3874-3844-4ee5-b91b-8c9666e41ee7][request.in][2026-02-11T06:21:50.698Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][159c3874-3844-4ee5-b91b-8c9666e41ee7][signature.verify.get][2026-02-11T06:21:50.700Z] {
+  "msgSignature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+  "calculatedSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "314bc22c0f69",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][159c3874-3844-4ee5-b91b-8c9666e41ee7][signature.verify.get.reject][2026-02-11T06:21:50.701Z] {
+  "reason": "signature_mismatch",
+  "echostrCandidateCount": 2,
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[http-global][159c3874-3844-4ee5-b91b-8c9666e41ee7][response.out][2026-02-11T06:21:50.707Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "159c3874-3844-4ee5-b91b-8c9666e41ee7",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 10
+}
+[wecom-callback][159c3874-3844-4ee5-b91b-8c9666e41ee7][response.out][2026-02-11T06:21:50.708Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "159c3874-3844-4ee5-b91b-8c9666e41ee7",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 10
+}
+[http-global][8296fb7a-264d-478d-945d-2ac3dbc83e11][request.in][2026-02-11T06:21:50.769Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][8296fb7a-264d-478d-945d-2ac3dbc83e11][request.in][2026-02-11T06:21:50.770Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][8296fb7a-264d-478d-945d-2ac3dbc83e11][signature.verify.get][2026-02-11T06:21:50.770Z] {
+  "msgSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "calculatedSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "16060e650e50",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][8296fb7a-264d-478d-945d-2ac3dbc83e11][signature.verify.get.pass][2026-02-11T06:21:50.771Z] {
+  "decrypted": "7471294036430494637"
+}
+[http-global][8296fb7a-264d-478d-945d-2ac3dbc83e11][response.out][2026-02-11T06:21:50.772Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "8296fb7a-264d-478d-945d-2ac3dbc83e11",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "19",
+    "etag": "W/\"13-9Ig+g5YplA/N98A2HStX7FpaRgI\""
+  },
+  "responseBody": "7471294036430494637",
+  "durationMs": 3
+}
+[wecom-callback][8296fb7a-264d-478d-945d-2ac3dbc83e11][response.out][2026-02-11T06:21:50.772Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "8296fb7a-264d-478d-945d-2ac3dbc83e11",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "19",
+    "etag": "W/\"13-9Ig+g5YplA/N98A2HStX7FpaRgI\""
+  },
+  "responseBody": "7471294036430494637",
+  "durationMs": 2
+}
+[app][1453dbc0-324a-4250-8552-fafe6aeb28f9][startup.success][2026-02-11T06:25:47.985Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[db][bd1f08e4-85bb-4cb5-9e73-31096ba39387][connect.success][2026-02-11T06:25:47.990Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][d176afb0-4aa5-45b3-9af3-25e909fb48a1][schema.init.success][2026-02-11T06:25:48.000Z] {
+  "table": "tasks"
+}
+[http-global][5bd41af5-4009-4236-a4ef-62263c3f7251][request.in][2026-02-11T06:25:50.274Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][5bd41af5-4009-4236-a4ef-62263c3f7251][request.in][2026-02-11T06:25:50.274Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][5bd41af5-4009-4236-a4ef-62263c3f7251][signature.verify.get][2026-02-11T06:25:50.276Z] {
+  "msgSignature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+  "calculatedSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "314bc22c0f69",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][5bd41af5-4009-4236-a4ef-62263c3f7251][signature.verify.get.reject][2026-02-11T06:25:50.277Z] {
+  "reason": "signature_mismatch",
+  "echostrCandidateCount": 2,
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[http-global][5bd41af5-4009-4236-a4ef-62263c3f7251][response.out][2026-02-11T06:25:50.284Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "5bd41af5-4009-4236-a4ef-62263c3f7251",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 11
+}
+[wecom-callback][5bd41af5-4009-4236-a4ef-62263c3f7251][response.out][2026-02-11T06:25:50.284Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "5bd41af5-4009-4236-a4ef-62263c3f7251",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 10
+}
+[app][94cb76f6-36d0-4c5d-961f-7c97e6ba101d][startup.success][2026-02-11T06:28:28.381Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[db][17bb201a-e51c-47b2-a7ea-17e6f03aac50][connect.success][2026-02-11T06:28:28.385Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][bc17d366-91cc-4d0a-a7f3-c538bcf089d1][schema.init.success][2026-02-11T06:28:28.395Z] {
+  "table": "tasks"
+}
+[http-global][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][request.in][2026-02-11T06:28:30.686Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][request.in][2026-02-11T06:28:30.686Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][signature.verify.get][2026-02-11T06:28:30.689Z] {
+  "msgSignature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+  "calculatedSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "314bc22c0f69",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][signature.verify.get.reject][2026-02-11T06:28:30.690Z] {
+  "reason": "signature_mismatch",
+  "echostrCandidateCount": 2,
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[http-global][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][response.out][2026-02-11T06:28:30.698Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 13
+}
+[wecom-callback][8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07][response.out][2026-02-11T06:28:30.698Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=31e7408917f6d6cfdf3370f9519545b1f540f632&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 401,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "8362fe4b-16d1-4e3d-9e1c-59ae8cd59d07",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "17",
+    "etag": "W/\"11-jvoakrwueYQ00YdhgUGnT9rivw0\""
+  },
+  "responseBody": "Invalid Signature",
+  "durationMs": 12
+}
+[http-global][22fc30cb-c536-420f-a3b4-4f90efcc8f47][request.in][2026-02-11T06:28:30.758Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][22fc30cb-c536-420f-a3b4-4f90efcc8f47][request.in][2026-02-11T06:28:30.760Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "msg_signature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+    "timestamp": "1770789544",
+    "nonce": "1770509210",
+    "echostr": "g6vdhPiJu99uFcdRsnQ 9h7r2FevYGgIDGIJrP RDLQ7rz IRiD7BC5rmjThyDTruzodh3na MTSFOivuW/DSw=="
+  },
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[wecom-callback][22fc30cb-c536-420f-a3b4-4f90efcc8f47][signature.verify.get][2026-02-11T06:28:30.760Z] {
+  "msgSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "calculatedSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "16060e650e50",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][22fc30cb-c536-420f-a3b4-4f90efcc8f47][signature.verify.get.pass][2026-02-11T06:28:30.761Z] {
+  "decrypted": "7471294036430494637"
+}
+[http-global][22fc30cb-c536-420f-a3b4-4f90efcc8f47][response.out][2026-02-11T06:28:30.763Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "22fc30cb-c536-420f-a3b4-4f90efcc8f47",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "19",
+    "etag": "W/\"13-9Ig+g5YplA/N98A2HStX7FpaRgI\""
+  },
+  "responseBody": "7471294036430494637",
+  "durationMs": 5
+}
+[wecom-callback][22fc30cb-c536-420f-a3b4-4f90efcc8f47][response.out][2026-02-11T06:28:30.763Z] {
+  "method": "GET",
+  "originalUrl": "/wecom/callback?msg_signature=bc03cf12a0d37717eacbdd2eceabc033d6adcba2&timestamp=1770789544&nonce=1770509210&echostr=g6vdhPiJu99uFcdRsnQ+9h7r2FevYGgIDGIJrP+RDLQ7rz+IRiD7BC5rmjThyDTruzodh3na+MTSFOivuW/DSw==",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "22fc30cb-c536-420f-a3b4-4f90efcc8f47",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": "19",
+    "etag": "W/\"13-9Ig+g5YplA/N98A2HStX7FpaRgI\""
+  },
+  "responseBody": "7471294036430494637",
+  "durationMs": 4
+}
+[app][016de2c8-7d62-4c8f-9bde-b49d78d97b74][startup.success][2026-02-11T06:35:14.486Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[db][d0d31313-c0a2-427e-9c12-a0edaa2534b2][connect.success][2026-02-11T06:35:14.491Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][46a56ca0-dfc7-4800-babc-b789bc73a708][schema.init.success][2026-02-11T06:35:14.500Z] {
+  "table": "tasks"
+}
+[wecom-callback][test-invalid_signature][signature.verify.get][2026-02-11T10:28:50.126Z] {
+  "msgSignature": "31e7408917f6d6cfdf3370f9519545b1f540f632",
+  "calculatedSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "314bc22c0f69",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][test-invalid_signature][signature.verify.get.reject][2026-02-11T10:28:50.129Z] {
+  "reason": "signature_mismatch",
+  "echostrCandidateCount": 2,
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][test-valid_plus_signature][signature.verify.get][2026-02-11T10:28:50.133Z] {
+  "msgSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "calculatedSignature": "bc03cf12a0d37717eacbdd2eceabc033d6adcba2",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "16060e650e50",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][test-valid_plus_signature][signature.verify.get.pass][2026-02-11T10:28:50.134Z] {
+  "decrypted": "7471294036430494637"
+}
+[wecom-callback][test-valid_space_signature][signature.verify.get][2026-02-11T10:28:50.135Z] {
+  "msgSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "calculatedSignature": "a6ec1a98c3e6cd39eff69bc5cbcc104e91ee8182",
+  "timestamp": "1770789544",
+  "nonce": "1770509210",
+  "echostrCandidateCount": 2,
+  "echostrFingerprint": "314bc22c0f69",
+  "callbackTokenFingerprint": "8ee1fc775af5"
+}
+[wecom-callback][test-valid_space_signature][callback.get.error][2026-02-11T10:28:50.136Z] {
+  "message": "error:1C80006B:Provider routines::wrong final block length",
+  "stack": "Error: error:1C80006B:Provider routines::wrong final block length\n    at Decipheriv.final (node:internal/crypto/cipher:184:29)\n    at WXBizMsgCrypt.decrypt (/Users/apus/Documents/UGit/wecom-task-bot/backend/src/utils/wxcrypto.js:70:88)\n    at /Users/apus/Documents/UGit/wecom-task-bot/backend/src/routes/callback.js:238:31\n    at [stdin]:55:5\n    at new Promise (<anonymous>)\n    at invokeGetCase ([stdin]:22:10)\n    at [stdin]:62:23\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)"
+}
+[db][af3d2531-7de5-4f26-8fbd-e307f8512310][connect.success][2026-02-11T10:28:50.343Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][25b112ff-20bb-48fe-b749-a68150367c0f][schema.init.success][2026-02-11T10:28:50.353Z] {
+  "table": "tasks"
+}
+[http-global][f775f696-091a-4b50-986c-78c2e040da08][request.in][2026-02-12T03:02:16.915Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "sec-fetch-site": "none",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-user": "?1",
+    "sec-fetch-dest": "document",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4adab6c9\"",
+    "if-modified-since": "Wed, 11 Feb 2026 03:59:33 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][f775f696-091a-4b50-986c-78c2e040da08][response.out][2026-02-12T03:02:16.927Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "f775f696-091a-4b50-986c-78c2e040da08",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 12
+}
+[http-global][88237e2d-2696-4867-8839-33b3aeead279][request.in][2026-02-12T03:02:16.955Z] {
+  "method": "GET",
+  "originalUrl": "/assets/index-DSJ3ALfw.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "origin": "http://localhost:8080",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "script",
+    "referer": "http://localhost:8080/",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"97283-19c4adab6c9\"",
+    "if-modified-since": "Wed, 11 Feb 2026 03:59:33 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][88237e2d-2696-4867-8839-33b3aeead279][response.out][2026-02-12T03:02:16.966Z] {
+  "method": "GET",
+  "originalUrl": "/assets/index-DSJ3ALfw.js",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "88237e2d-2696-4867-8839-33b3aeead279",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"97283-19c4b693a5a\"",
+    "content-type": "application/javascript; charset=UTF-8",
+    "content-length": 619139
+  },
+  "durationMs": 11
+}
+[http-global][df7b9239-a628-4c69-be92-dc5647425266][request.in][2026-02-12T03:02:18.633Z] {
+  "method": "GET",
+  "originalUrl": "/vite.svg",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "image",
+    "referer": "http://localhost:8080/",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4adab6c9\"",
+    "if-modified-since": "Wed, 11 Feb 2026 03:59:33 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][df7b9239-a628-4c69-be92-dc5647425266][response.out][2026-02-12T03:02:18.651Z] {
+  "method": "GET",
+  "originalUrl": "/vite.svg",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "df7b9239-a628-4c69-be92-dc5647425266",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 18
+}
+[http-global][c6c5505c-9201-4074-b32f-488eab517098][request.in][2026-02-12T03:02:19.278Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4adab6c9\"",
+    "if-modified-since": "Wed, 11 Feb 2026 03:59:33 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][c6c5505c-9201-4074-b32f-488eab517098][response.out][2026-02-12T03:02:19.301Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "c6c5505c-9201-4074-b32f-488eab517098",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 24
+}
+[http-global][bdd20b4e-7371-4714-9f9d-b1cb1a76d1be][request.in][2026-02-12T03:02:21.876Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "sec-ch-ua-platform": "\"macOS\"",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
+    "sec-ch-ua-mobile": "?0",
+    "accept": "*/*",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][bdd20b4e-7371-4714-9f9d-b1cb1a76d1be][response.out][2026-02-12T03:02:21.894Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "bdd20b4e-7371-4714-9f9d-b1cb1a76d1be",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 18
+}
+[http-global][06e864bf-c85e-45f5-8ff3-0615c45bb452][request.in][2026-02-12T03:02:21.897Z] {
+  "method": "GET",
+  "originalUrl": "/.well-known/appspecific/com.chrome.devtools.json",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "pragma": "no-cache",
+    "cache-control": "no-cache",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][cc1f0bea-6675-4d07-b58a-c541385d3149][request.in][2026-02-12T03:02:21.900Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js.map",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "pragma": "no-cache",
+    "cache-control": "no-cache",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "no-cors",
+    "sec-fetch-dest": "empty",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][06e864bf-c85e-45f5-8ff3-0615c45bb452][response.out][2026-02-12T03:02:21.903Z] {
+  "method": "GET",
+  "originalUrl": "/.well-known/appspecific/com.chrome.devtools.json",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "06e864bf-c85e-45f5-8ff3-0615c45bb452",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 6
+}
+[http-global][cc1f0bea-6675-4d07-b58a-c541385d3149][response.out][2026-02-12T03:02:21.907Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js.map",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "cc1f0bea-6675-4d07-b58a-c541385d3149",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 7
+}
+[http-global][1c549063-7ea1-48e1-9836-1fd9d093d95d][request.in][2026-02-12T03:07:17.902Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][1c549063-7ea1-48e1-9836-1fd9d093d95d][response.out][2026-02-12T03:07:17.921Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "1c549063-7ea1-48e1-9836-1fd9d093d95d",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 19
+}
+[http-global][d051fc85-b36e-4f6a-a6cd-652ddbcfec08][request.in][2026-02-12T03:12:47.903Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][d051fc85-b36e-4f6a-a6cd-652ddbcfec08][response.out][2026-02-12T03:12:47.915Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "d051fc85-b36e-4f6a-a6cd-652ddbcfec08",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 15
+}
+[http-global][ed34535b-1e65-410a-80c5-10a6f20b60c8][request.in][2026-02-12T03:18:17.914Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][ed34535b-1e65-410a-80c5-10a6f20b60c8][response.out][2026-02-12T03:18:17.926Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "ed34535b-1e65-410a-80c5-10a6f20b60c8",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 14
+}
+[http-global][808d9e24-a6a9-488e-b310-37bae252ff19][request.in][2026-02-12T03:23:47.906Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][808d9e24-a6a9-488e-b310-37bae252ff19][response.out][2026-02-12T03:23:47.933Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "808d9e24-a6a9-488e-b310-37bae252ff19",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 27
+}
+[http-global][9e1b0c8d-fd07-484f-89ce-fd5ca0cfc712][request.in][2026-02-12T03:29:17.937Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][9e1b0c8d-fd07-484f-89ce-fd5ca0cfc712][response.out][2026-02-12T03:29:17.950Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "9e1b0c8d-fd07-484f-89ce-fd5ca0cfc712",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 14
+}
+[http-global][e8576488-b760-4504-b6d9-5e0e4a19d953][request.in][2026-02-12T03:34:47.921Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][e8576488-b760-4504-b6d9-5e0e4a19d953][response.out][2026-02-12T03:34:47.929Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "e8576488-b760-4504-b6d9-5e0e4a19d953",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 7
+}
+[http-global][0683918d-e01c-4827-87ce-6ea268588bc0][request.in][2026-02-12T03:40:18.011Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][0683918d-e01c-4827-87ce-6ea268588bc0][response.out][2026-02-12T03:40:18.023Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "0683918d-e01c-4827-87ce-6ea268588bc0",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 12
+}
+[http-global][79152e30-c171-432b-a985-e9f2de5aad20][request.in][2026-02-12T03:45:48.025Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][79152e30-c171-432b-a985-e9f2de5aad20][response.out][2026-02-12T03:45:48.028Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "79152e30-c171-432b-a985-e9f2de5aad20",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 3
+}
+[http-global][aeefdab5-b9f4-4206-bb44-912a986d41d8][request.in][2026-02-12T03:51:18.030Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][aeefdab5-b9f4-4206-bb44-912a986d41d8][response.out][2026-02-12T03:51:18.047Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "aeefdab5-b9f4-4206-bb44-912a986d41d8",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 17
+}
+[http-global][c05df25b-23ed-4c5a-9117-86d9a3a5910f][request.in][2026-02-12T03:56:48.025Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][c05df25b-23ed-4c5a-9117-86d9a3a5910f][response.out][2026-02-12T03:56:48.028Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "c05df25b-23ed-4c5a-9117-86d9a3a5910f",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 3
+}
+[http-global][72898fcb-5850-4207-be5e-3cbb6af0b8e1][request.in][2026-02-12T04:02:18.029Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][72898fcb-5850-4207-be5e-3cbb6af0b8e1][response.out][2026-02-12T04:02:18.032Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "72898fcb-5850-4207-be5e-3cbb6af0b8e1",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 4
+}
+[http-global][cc03d901-64f0-4b5a-a14e-3dd60eae070f][request.in][2026-02-12T04:07:48.052Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][cc03d901-64f0-4b5a-a14e-3dd60eae070f][response.out][2026-02-12T04:07:48.056Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "cc03d901-64f0-4b5a-a14e-3dd60eae070f",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 4
+}
+[http-global][fb801830-fb22-4256-921c-b64527057424][request.in][2026-02-12T04:13:18.032Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][fb801830-fb22-4256-921c-b64527057424][response.out][2026-02-12T04:13:18.035Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "fb801830-fb22-4256-921c-b64527057424",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 4
+}
+[http-global][b5f6fd43-89ac-4acf-a440-e3e040552172][request.in][2026-02-12T04:18:48.043Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][b5f6fd43-89ac-4acf-a440-e3e040552172][response.out][2026-02-12T04:18:48.055Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "b5f6fd43-89ac-4acf-a440-e3e040552172",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 12
+}
+[http-global][e2687415-32b8-47d3-bcfa-cdb7f54d0e83][request.in][2026-02-12T04:24:18.051Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][e2687415-32b8-47d3-bcfa-cdb7f54d0e83][response.out][2026-02-12T04:24:18.062Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "e2687415-32b8-47d3-bcfa-cdb7f54d0e83",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 11
+}
+[http-global][0cd7460a-857e-4c26-b812-f833292632a9][request.in][2026-02-12T04:29:48.080Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][0cd7460a-857e-4c26-b812-f833292632a9][response.out][2026-02-12T04:29:48.093Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "0cd7460a-857e-4c26-b812-f833292632a9",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 14
+}
+[http-global][ac6c3c03-c15c-440b-8706-f1c9848abaa4][request.in][2026-02-12T04:35:18.082Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][ac6c3c03-c15c-440b-8706-f1c9848abaa4][response.out][2026-02-12T04:35:18.087Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "ac6c3c03-c15c-440b-8706-f1c9848abaa4",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 5
+}
+[http-global][4bed85de-fb8b-4ad2-8880-306f59479630][request.in][2026-02-12T04:40:48.099Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][4bed85de-fb8b-4ad2-8880-306f59479630][response.out][2026-02-12T04:40:48.108Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "4bed85de-fb8b-4ad2-8880-306f59479630",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 9
+}
+[http-global][6ef7dc6f-177b-42c7-af6e-3142ce33aff6][request.in][2026-02-12T04:46:18.099Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][6ef7dc6f-177b-42c7-af6e-3142ce33aff6][response.out][2026-02-12T04:46:18.105Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "6ef7dc6f-177b-42c7-af6e-3142ce33aff6",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 6
+}
+[http-global][7902976b-c6d5-474f-a788-ead26b407fe6][request.in][2026-02-12T04:51:48.107Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][7902976b-c6d5-474f-a788-ead26b407fe6][response.out][2026-02-12T04:51:48.108Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "7902976b-c6d5-474f-a788-ead26b407fe6",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 1
+}
+[http-global][352b7406-2fdd-4bd8-97d0-e715077ce1c0][request.in][2026-02-12T04:57:18.123Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][352b7406-2fdd-4bd8-97d0-e715077ce1c0][response.out][2026-02-12T04:57:18.145Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "352b7406-2fdd-4bd8-97d0-e715077ce1c0",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 22
+}
+[http-global][b08ba712-1cf2-4ae0-a369-78f963819e46][request.in][2026-02-12T05:02:48.142Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][b08ba712-1cf2-4ae0-a369-78f963819e46][response.out][2026-02-12T05:02:48.154Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "b08ba712-1cf2-4ae0-a369-78f963819e46",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 12
+}
+[http-global][aeaef449-574c-4f8e-885e-59d5ffadfd4b][request.in][2026-02-12T05:08:18.159Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][aeaef449-574c-4f8e-885e-59d5ffadfd4b][response.out][2026-02-12T05:08:18.167Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "aeaef449-574c-4f8e-885e-59d5ffadfd4b",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 9
+}
+[http-global][ae631d30-a6ed-4d2c-b568-c01c206276d1][request.in][2026-02-12T05:12:49.704Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "headers": {
+    "host": "localhost:8080",
+    "connection": "keep-alive",
+    "cache-control": "max-age=0",
+    "accept": "*/*",
+    "service-worker": "script",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "same-origin",
+    "sec-fetch-dest": "serviceworker",
+    "referer": "http://localhost:8080/_static/out/browser/serviceWorker.js",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "zh,zh-CN;q=0.9,en;q=0.8",
+    "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX19VTECBT7FWFbHnaS9rpCRRP3B92P0UHv0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FB5KWZO6os%2FMdd1g%2Fdu8j0vYK%2FkRwpGpk%3D; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX19Z9xFIp9xWcHMFJiMDNFldgFMGV0aq6pueh7tnYbDg4hD0MJIBjD3HZ4XQocXNfPrmCXtlPSi9Iw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BTADH2bz4sKNGHHbuFUFLwhlqeaNMSJNULo7FeZf3g2Sg9NVxTOYKSaPg%2BdEcQ2zzJ4hdFpGA5nzoO3B0Wp%2BxLhtVOmAFeDeXNnxAL7Vr%2BcMh1V8DiqVrzXFMRjXizQg6RtaqoFulhCr%2F9ToO4wsYZfcbPRuBLxdA%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX1%2BueHCwtREdVcaCRXpqoj1aBWv%2BpCgoY%2FQEdMMS8HzhJ02iEmCL%2Bu7A8tNie7Dr0ZwRzgz66upA4EySbnWD2OV6tFcSujpX7BrWYXQoiMKBF6rNwllVUdbV%2F1Hz0KNVjeV6nXJjRKDBHCXYUlwvR%2FIdkR0BaXvDXVI%3D; rl_session=RudderEncrypt%3AU2FsdGVkX19pRateRVnT2P%2Bnk%2BEr3Gh5D86FURqRW2T%2By3HfHd1QJ3986KxzFzbTQQElq5p9UjrtXA9XQTPnFvTySKrUofwEGx5OTOjOZdOEiH5w2KYkPVZDgVTlTjfgR5JvAJukDaHklepY8dXduA%3D%3D; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%22127483cd9f53f3b2c0117a85e01ee0846ebdaa78b12c786b40677e82b6fe091b%23739d5e08-e7c7-42a9-87bf-aff936eecadc%22%2C%22%24sesid%22%3A%5B1761622486888%2C%22019a28d0-ed29-79b1-aad1-89d6c64f5869%22%2C1761621372197%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22http%3A%2F%2Flocalhost%3A5678%2Fhome%2Fworkflows%22%7D%7D; Hm_lvt_0febd9e3cacb3f627ddac64d52caac39=1766632052,1766738488,1766823713; Hm_lvt_5819d05c0869771ff6e6a81cdec5b2e8=1766829123; Hm_lvt_c37f4573e086c82c1c0cc22e1b9d38a1=1766829132",
+    "if-none-match": "W/\"569-19c4b693a5a\"",
+    "if-modified-since": "Wed, 11 Feb 2026 06:35:13 GMT"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][ae631d30-a6ed-4d2c-b568-c01c206276d1][response.out][2026-02-12T05:12:49.712Z] {
+  "method": "GET",
+  "originalUrl": "/_static/out/browser/serviceWorker.js",
+  "statusCode": 304,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "ae631d30-a6ed-4d2c-b568-c01c206276d1",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\""
+  },
+  "durationMs": 4
+}
+[http-global][08e5ab12-d6ca-457c-82c3-c0127f09f64f][request.in][2026-02-12T06:00:42.071Z] {
+  "method": "POST",
+  "originalUrl": "/api/v1/auth/login",
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*",
+    "content-type": "application/json",
+    "content-length": "51"
+  },
+  "query": {},
+  "params": {},
+  "body": {
+    "usernameOrEmail": "justin",
+    "password": "Test12345"
+  },
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][08e5ab12-d6ca-457c-82c3-c0127f09f64f][response.out][2026-02-12T06:00:42.075Z] {
+  "method": "POST",
+  "originalUrl": "/api/v1/auth/login",
+  "statusCode": 404,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "08e5ab12-d6ca-457c-82c3-c0127f09f64f",
+    "content-security-policy": "default-src 'none'",
+    "x-content-type-options": "nosniff",
+    "content-type": "text/html; charset=utf-8",
+    "content-length": 157
+  },
+  "durationMs": 4
+}
+[http-global][0e7ad8b0-f062-459f-80b5-d408365a24ef][request.in][2026-02-12T07:04:22.754Z] {
+  "method": "GET",
+  "originalUrl": "/api/v1/openlovable/health",
+  "headers": {
+    "host": "localhost:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::1"
+}
+[http-global][0e7ad8b0-f062-459f-80b5-d408365a24ef][response.out][2026-02-12T07:04:22.760Z] {
+  "method": "GET",
+  "originalUrl": "/api/v1/openlovable/health",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "0e7ad8b0-f062-459f-80b5-d408365a24ef",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Wed, 11 Feb 2026 06:35:13 GMT",
+    "etag": "W/\"569-19c4b693a5a\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1385
+  },
+  "durationMs": 6
+}
+[db][2798a70c-3df7-46df-b969-39823af04e3e][connect.success][2026-02-12T08:22:06.723Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][f64a6b93-3452-4677-801b-86d23fac2dc5][schema.init.success][2026-02-12T08:22:06.740Z] {
+  "table": "tasks"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.752Z] {
+  "table": "tasks",
+  "columnName": "redo_count"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.755Z] {
+  "table": "tasks",
+  "columnName": "verified_by_userid"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.756Z] {
+  "table": "tasks",
+  "columnName": "updated_at"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.757Z] {
+  "table": "tasks",
+  "columnName": "completed_by_userid"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.758Z] {
+  "table": "tasks",
+  "columnName": "last_reminder_at"
+}
+[db][53c560e0-ef15-41e3-8ded-161628932655][schema.migration.apply_success][2026-02-12T08:22:06.759Z] {
+  "table": "tasks",
+  "columnName": "last_reminder_kind"
+}
+[db][1d5eb2ce-7a4e-49ff-92ec-528318ba1f81][connect.success][2026-02-12T12:40:57.236Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][d6414844-86e6-4a2c-ac01-608509c5b9d3][schema.init.success][2026-02-12T12:40:57.242Z] {
+  "table": "tasks"
+}
+[sync-service][cb048002-090a-4db6-8cc8-ef5512a1bac3][sync.start][2026-02-12T12:40:57.237Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][cb048002-090a-4db6-8cc8-ef5512a1bac3][sync.success][2026-02-12T12:40:57.240Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][b21e559b-335d-4a24-84df-f0f45fbfb923][connect.success][2026-02-12T12:40:57.250Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][e241622a-f388-4db2-b1aa-2e7e2ed8e19c][schema.migration.apply_success][2026-02-12T12:40:57.253Z] {
+  "table": "tasks",
+  "columnName": "owner_cal_id"
+}
+[db][9b10fa1a-0623-47ee-8793-c34fd32f59e0][schema.init.success][2026-02-12T12:40:57.253Z] {
+  "table": "tasks"
+}
+[task-service][c1150291-f493-4081-ad45-8a497071663b][manual_task.create_success][2026-02-12T12:40:57.254Z] {
+  "taskId": 1,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerCalendarId": "cal-zhangsan",
+  "source": "unit_test"
+}
+[db][c32599c4-b120-4125-804b-b5186e4ff5d2][connect.success][2026-02-12T12:43:18.984Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][f016f617-d3b3-4b33-b717-72b22c7f434f][schema.init.success][2026-02-12T12:43:18.996Z] {
+  "table": "tasks"
+}
+[db][7b194ed0-0293-4ce1-a4d4-737e82ba90e0][schema.migration.apply_success][2026-02-12T12:43:19.013Z] {
+  "table": "tasks",
+  "columnName": "owner_userid"
+}
+[db][a0b213cd-1944-4469-af01-1d12e009d85a][connect.success][2026-02-12T12:43:19.082Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[sync-service][b65df34c-e5f8-4d9d-9e31-8de5f4951545][sync.start][2026-02-12T12:43:19.074Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][b65df34c-e5f8-4d9d-9e31-8de5f4951545][sync.success][2026-02-12T12:43:19.077Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][48f73362-b5d8-4b8f-8398-822d7ab37915][connect.success][2026-02-12T12:43:19.085Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][4168ec22-d29b-41c5-bcc7-7a684d9cb1b7][schema.init.success][2026-02-12T12:43:19.086Z] {
+  "table": "tasks"
+}
+[db][8df5271b-dd94-4d01-ac11-7ecb3bd21c6b][schema.init.success][2026-02-12T12:43:19.088Z] {
+  "table": "tasks"
+}
+[task-service][6432352b-9157-4fbb-955e-ef9765e5db87][manual_task.create_success][2026-02-12T12:43:19.096Z] {
+  "taskId": 3,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][45b0585c-53ef-42a6-9085-de0db4fdef7d][connect.success][2026-02-12T12:44:20.395Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][636fe01f-165d-4b90-85c1-9977570b4e00][schema.init.success][2026-02-12T12:44:20.406Z] {
+  "table": "tasks"
+}
+[db][c6755018-ee2e-46e9-85d6-9e2f60d2bf09][connect.success][2026-02-12T12:44:20.486Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][2797ed26-d61f-4a62-9e70-95cdd430a8ea][schema.init.success][2026-02-12T12:44:20.489Z] {
+  "table": "tasks"
+}
+[sync-service][750348a1-e0dc-4a84-a202-cf84a00289bc][sync.start][2026-02-12T12:44:20.482Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][750348a1-e0dc-4a84-a202-cf84a00289bc][sync.success][2026-02-12T12:44:20.484Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][dc81127e-40c0-4cf3-847f-ba3bf652ddc0][connect.success][2026-02-12T12:44:20.492Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][a2a0f628-f2e0-4c11-a15c-9c2d5863df9b][schema.init.success][2026-02-12T12:44:20.495Z] {
+  "table": "tasks"
+}
+[task-service][152d6d68-5858-44d7-9f28-46d4714d882a][manual_task.create_success][2026-02-12T12:44:20.499Z] {
+  "taskId": 7,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][67cec87f-fa50-4cb1-ab26-b4a7fb3c61b6][connect.success][2026-02-12T12:45:30.573Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][0163e62b-92df-4fab-b750-6cc890837418][schema.init.success][2026-02-12T12:45:30.583Z] {
+  "table": "tasks"
+}
+[db][61126c2e-33f8-44de-9b88-75314d0442e5][connect.success][2026-02-12T12:45:30.662Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][0bc9cc3a-54ec-4def-ae26-dbf71c0771f7][schema.init.success][2026-02-12T12:45:30.666Z] {
+  "table": "tasks"
+}
+[sync-service][48982aef-9a24-423c-887f-94ffd3b130d8][sync.start][2026-02-12T12:45:30.659Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][48982aef-9a24-423c-887f-94ffd3b130d8][sync.success][2026-02-12T12:45:30.661Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][3120473e-a17c-4c73-be6d-fcc0dcd91a3a][connect.success][2026-02-12T12:45:30.669Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][025da771-327d-4a51-8e6f-5e95912bc37d][schema.init.success][2026-02-12T12:45:30.672Z] {
+  "table": "tasks"
+}
+[task-service][34084655-48d9-40d3-a392-d0d4283903d8][manual_task.create_success][2026-02-12T12:45:30.677Z] {
+  "taskId": 11,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][11e6bb45-cefb-44ff-97f9-012d4b697989][connect.success][2026-02-12T13:14:23.490Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][4420b0e7-6911-44f5-bafa-1fc7e855149d][schema.init.success][2026-02-12T13:14:23.504Z] {
+  "table": "tasks"
+}
+[db][ab0dc877-5d0f-4dbb-81c7-cb8823c2078b][connect.success][2026-02-12T13:14:23.614Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][c21faa57-cb8f-4d67-a09c-c68dff62c37a][schema.init.success][2026-02-12T13:14:23.619Z] {
+  "table": "tasks"
+}
+[sync-service][f0002fd3-e545-4fd0-8473-bb164cc453ee][sync.start][2026-02-12T13:14:23.611Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][f0002fd3-e545-4fd0-8473-bb164cc453ee][sync.success][2026-02-12T13:14:23.614Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][1886b144-a718-4eaf-a7c3-35f7e06e89c5][connect.success][2026-02-12T13:14:23.624Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][16bd21a1-dbae-4a0c-b2fc-047649eb3854][schema.init.success][2026-02-12T13:14:23.627Z] {
+  "table": "tasks"
+}
+[task-service][0de510df-2101-4d1b-ba0c-8d6f6918531e][manual_task.create_success][2026-02-12T13:14:23.631Z] {
+  "taskId": 15,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][ddd791dd-71c7-4c55-a644-e897b0c41923][connect.success][2026-02-12T13:17:05.675Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][8d59ec95-fcb5-42a0-8c81-4bfeddf6abd6][schema.init.success][2026-02-12T13:17:05.683Z] {
+  "table": "tasks"
+}
+[db][aeca2e77-a3a7-4b22-9f11-fec47dbb4bf2][connect.success][2026-02-12T13:17:05.786Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][54b05c47-deda-4e61-8f3d-1a1cf2e6b423][schema.init.success][2026-02-12T13:17:05.790Z] {
+  "table": "tasks"
+}
+[sync-service][148dbbfa-89c4-408d-a415-c1ea79e206cf][sync.start][2026-02-12T13:17:05.783Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][148dbbfa-89c4-408d-a415-c1ea79e206cf][sync.success][2026-02-12T13:17:05.785Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][17f2059c-b1fb-4b1a-8c75-10fd5a02a944][connect.success][2026-02-12T13:17:05.793Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][1f98e7b3-d4be-4447-b413-19df8ed193be][schema.init.success][2026-02-12T13:17:05.795Z] {
+  "table": "tasks"
+}
+[task-service][47fd5725-46ba-45e0-abd3-ae1d27a66037][manual_task.create_success][2026-02-12T13:17:05.799Z] {
+  "taskId": 19,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][11f76175-b70a-4c38-bc37-b9d2f5aeb6e8][connect.success][2026-02-12T13:55:46.405Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][83cb1767-397e-4d48-be31-928a9fb73fd4][schema.init.success][2026-02-12T13:55:46.416Z] {
+  "table": "tasks"
+}
+[db][09633659-9f68-4824-9549-7711c7d57640][connect.success][2026-02-12T13:55:46.508Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][d60666e9-187b-4fb7-b04f-257e3ea719ce][schema.init.success][2026-02-12T13:55:46.513Z] {
+  "table": "tasks"
+}
+[task-service][976ad83a-910d-46ac-8114-9b7f4359d6e0][manual_task.create_success][2026-02-12T13:55:46.524Z] {
+  "taskId": 23,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[sync-service][6223e301-0874-4201-a7f5-301c7f14c412][sync.start][2026-02-12T13:55:46.516Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][6223e301-0874-4201-a7f5-301c7f14c412][sync.success][2026-02-12T13:55:46.518Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][d204b341-d3ee-4ff2-be48-ac56c159efde][connect.success][2026-02-12T13:55:46.527Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][737a1220-e0f0-420d-951c-11fffad517cf][schema.init.success][2026-02-12T13:55:46.529Z] {
+  "table": "tasks"
+}
+[app][3a75fab3-e10b-4567-a2d2-98a2bea35544][startup.success][2026-02-12T13:57:29.952Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][038bd77e-385f-4f7f-834e-fd8ef3b4e284][startup.trigger][2026-02-12T13:57:29.962Z] {
+  "reason": "service_start"
+}
+[sync-service][51e500dc-7740-46fb-add7-c8a999066e4a][sync.skip][2026-02-12T13:57:29.962Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][5bf9e95d-ea54-4d5e-89c2-e8532c709b73][connect.success][2026-02-12T13:57:29.963Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][aa99c660-1c45-4d01-96ee-ae5ae417245c][schema.init.success][2026-02-12T13:57:29.971Z] {
+  "table": "tasks"
+}
+[http-global][9d9ec713-c5aa-4c97-b87b-74f4f983cf0b][request.in][2026-02-12T13:58:01.657Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][9d9ec713-c5aa-4c97-b87b-74f4f983cf0b][response.out][2026-02-12T13:58:01.665Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "9d9ec713-c5aa-4c97-b87b-74f4f983cf0b",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Thu, 12 Feb 2026 13:57:28 GMT",
+    "etag": "W/\"5b4-19c52247cfe\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1460
+  },
+  "durationMs": 8
+}
+[db][49bd5624-2a7a-4cc7-958b-65f7d4b72be4][connect.success][2026-02-12T14:21:50.742Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][cf6c0260-326f-4d4a-83c8-2a080c13b0db][schema.init.success][2026-02-12T14:21:50.756Z] {
+  "table": "tasks"
+}
+[db][19763daa-7d35-49cb-aac0-69592c1a926b][connect.success][2026-02-12T14:21:50.858Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][bb885d8a-fa09-4a21-99ab-f20af4a7750c][schema.init.success][2026-02-12T14:21:50.862Z] {
+  "table": "tasks"
+}
+[sync-service][3cca7018-bf48-4391-971e-8f51c610fe6d][sync.start][2026-02-12T14:21:50.856Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][3cca7018-bf48-4391-971e-8f51c610fe6d][sync.success][2026-02-12T14:21:50.859Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][f985d5a3-dcfc-4b9b-9c6d-8de6436dfe15][connect.success][2026-02-12T14:21:50.866Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][9a0b1410-ccd6-4c20-b8ca-4bf6d657eb41][schema.init.success][2026-02-12T14:21:50.869Z] {
+  "table": "tasks"
+}
+[task-service][30ce2edf-0c0c-4a1d-acb5-92eadf9ff4fc][manual_task.create_success][2026-02-12T14:21:50.873Z] {
+  "taskId": 27,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[db][f06d6160-6279-4e95-a09a-a332294cba49][connect.success][2026-02-12T14:58:28.378Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][7d9626bf-af65-48d3-bc36-3b364089c1b7][schema.init.success][2026-02-12T14:58:28.390Z] {
+  "table": "tasks"
+}
+[db][19edb48e-dc12-4d3e-8c97-927fd76774f6][connect.success][2026-02-12T14:58:28.489Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][a198a2df-bd7c-43ee-b092-3e6fcb5a9a89][schema.init.success][2026-02-12T14:58:28.493Z] {
+  "table": "tasks"
+}
+[task-service][fbd1cb8b-df3d-4b41-971c-aa69b6cfecff][manual_task.create_success][2026-02-12T14:58:28.504Z] {
+  "taskId": 31,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[sync-service][429a8dcd-2b25-4e1f-9dd0-9bb684e43b7b][sync.start][2026-02-12T14:58:28.496Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][429a8dcd-2b25-4e1f-9dd0-9bb684e43b7b][sync.success][2026-02-12T14:58:28.499Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][d2b9fbab-d382-4f54-ad55-bf1feb86b06c][connect.success][2026-02-12T14:58:28.507Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][d57817d3-b2c0-44cd-b666-65a860c05cd7][schema.init.success][2026-02-12T14:58:28.510Z] {
+  "table": "tasks"
+}
+[app][5e9575d1-5d4a-4765-a7ad-50d12faa50e8][startup.success][2026-02-12T14:58:54.821Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][e709f8b6-fbab-4ac0-94d5-5d3b036de6df][startup.trigger][2026-02-12T14:58:54.831Z] {
+  "reason": "service_start"
+}
+[sync-service][44b22931-aac7-4541-8869-685b33843cdf][sync.skip][2026-02-12T14:58:54.832Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][6f8c1fd2-a105-42a1-88c3-141908a2a95e][connect.success][2026-02-12T14:58:54.833Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][0c16f0e7-7fc9-4a2d-82ee-18220cad5bad][schema.init.success][2026-02-12T14:58:54.840Z] {
+  "table": "tasks"
+}
+[app][623903d9-ca3e-4f43-b5f9-4201b6a86e94][startup.success][2026-02-12T15:00:52.638Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][2238b91a-a5da-4b3e-8e91-a3f0906af5f9][startup.trigger][2026-02-12T15:00:52.647Z] {
+  "reason": "service_start"
+}
+[sync-service][4f84bc6e-5d82-4ed6-85ff-71b5fcd19cda][sync.skip][2026-02-12T15:00:52.647Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][bf141385-2f5c-4c44-bc20-6b8370a46ea7][connect.success][2026-02-12T15:00:52.648Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][0ff63b8d-6d42-4d5a-8db2-f3141d08ed39][schema.init.success][2026-02-12T15:00:52.655Z] {
+  "table": "tasks"
+}
+[http-global][6d7a3446-0e87-43c5-8041-df75060fe1e3][request.in][2026-02-12T15:00:55.000Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][6d7a3446-0e87-43c5-8041-df75060fe1e3][response.out][2026-02-12T15:00:55.010Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "6d7a3446-0e87-43c5-8041-df75060fe1e3",
+    "cache-control": "no-store",
+    "content-type": "text/plain; charset=utf-8",
+    "accept-ranges": "bytes",
+    "last-modified": "Thu, 12 Feb 2026 14:54:25 GMT",
+    "etag": "W/\"10-19c52589e65\"",
+    "content-length": 16
+  },
+  "durationMs": 11
+}
+[http-global][707a0bf9-c06b-4cfb-a201-076f929befb0][request.in][2026-02-12T15:00:55.066Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][707a0bf9-c06b-4cfb-a201-076f929befb0][response.out][2026-02-12T15:00:55.069Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "707a0bf9-c06b-4cfb-a201-076f929befb0",
+    "cache-control": "no-store",
+    "content-type": "text/plain; charset=utf-8",
+    "accept-ranges": "bytes",
+    "last-modified": "Thu, 12 Feb 2026 14:54:25 GMT",
+    "etag": "W/\"10-19c52589e65\"",
+    "content-length": 16
+  },
+  "durationMs": 3
+}
+[http-global][314e08ed-896f-4945-b504-9c8640c74e0d][request.in][2026-02-12T15:00:55.126Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][314e08ed-896f-4945-b504-9c8640c74e0d][response.out][2026-02-12T15:00:55.128Z] {
+  "method": "GET",
+  "originalUrl": "/",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "314e08ed-896f-4945-b504-9c8640c74e0d",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Thu, 12 Feb 2026 14:58:32 GMT",
+    "etag": "W/\"5b4-19c525c649f\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1460
+  },
+  "durationMs": 3
+}
+[app][9c82e245-103f-4dbf-9e3a-bfcc0fbe634e][startup.success][2026-02-12T15:01:52.593Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][34675ed8-3c48-4f97-a987-4b7a7a1f1aa2][startup.trigger][2026-02-12T15:01:52.602Z] {
+  "reason": "service_start"
+}
+[sync-service][259675c3-3e3b-49c1-8a0a-9eb626b3f5c4][sync.skip][2026-02-12T15:01:52.603Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][bf587790-58d7-4dd3-a1df-42c7a92d9620][connect.success][2026-02-12T15:01:52.603Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][655af8f4-1741-4574-ac2c-2b73bccd6a7f][schema.init.success][2026-02-12T15:01:52.609Z] {
+  "table": "tasks"
+}
+[app][577110e8-5254-44ee-8f66-f2efe52815e8][startup.success][2026-02-12T15:02:47.149Z] {
+  "port": "8080",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][75805240-9d5e-46b1-bedc-e18389858906][startup.trigger][2026-02-12T15:02:47.159Z] {
+  "reason": "service_start"
+}
+[sync-service][2d7219cf-bea6-41a4-93aa-f1f1670cfda9][sync.skip][2026-02-12T15:02:47.159Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][4ed889f0-9113-402a-8ddf-a69d260e354a][connect.success][2026-02-12T15:02:47.160Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][717198a2-0b1f-4b2d-b3a2-772d4e84d4b8][schema.init.success][2026-02-12T15:02:47.168Z] {
+  "table": "tasks"
+}
+[http-global][0b0f6cd2-c3b7-4022-b9a6-abd72a5ebced][request.in][2026-02-12T15:02:49.529Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "headers": {
+    "host": "justin.yiyuehk.com:8080",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][0b0f6cd2-c3b7-4022-b9a6-abd72a5ebced][response.out][2026-02-12T15:02:49.541Z] {
+  "method": "GET",
+  "originalUrl": "/WW_verify_mFa2sncgjTMUS3am.txt",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "0b0f6cd2-c3b7-4022-b9a6-abd72a5ebced",
+    "cache-control": "no-store",
+    "content-type": "text/plain; charset=utf-8",
+    "accept-ranges": "bytes",
+    "last-modified": "Thu, 12 Feb 2026 14:54:25 GMT",
+    "etag": "W/\"10-19c52589e65\"",
+    "content-length": 16
+  },
+  "durationMs": 12
+}
+[db][bba445d4-11f5-4777-b194-874ef841fe48][connect.success][2026-02-12T15:19:09.331Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][ec218129-72e0-42db-bd7e-c040873e558c][schema.init.success][2026-02-12T15:19:09.346Z] {
+  "table": "tasks"
+}
+[sync-service][dcbc2880-f970-4d42-a812-b36d8455d7d6][sync.start][2026-02-12T15:19:09.438Z] {
+  "calendarTargets": [
+    {
+      "user_id": "zhangsan",
+      "cal_id": "cal-a",
+      "source": "env_map"
+    },
+    {
+      "user_id": "lisi",
+      "cal_id": "cal-b",
+      "source": "env_map"
+    },
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "source": "default"
+    }
+  ]
+}
+[sync-service][dcbc2880-f970-4d42-a812-b36d8455d7d6][sync.success][2026-02-12T15:19:09.441Z] {
+  "success": true,
+  "calendar_count": 3,
+  "calendar_success_count": 2,
+  "calendar_failed_count": 1,
+  "calendar_errors": [
+    {
+      "user_id": "",
+      "cal_id": "default-cal",
+      "reason": "wecom_schedule_list_failed",
+      "errcode": 41001,
+      "errmsg": "invalid cal id"
+    }
+  ],
+  "schedule_count": 4,
+  "unique_schedule_count": 3,
+  "inserted_count": 1,
+  "updated_count": 1,
+  "skipped_count": 2,
+  "reminder_sent_count": 3
+}
+[db][f18bfe42-46d6-4e08-a960-637793ffda27][connect.success][2026-02-12T15:19:09.448Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][81ab7cd2-aa06-40e3-86ab-ee570ef4a8fe][schema.init.success][2026-02-12T15:19:09.451Z] {
+  "table": "tasks"
+}
+[db][7988a18a-2708-4dce-99d9-3202ef5d2ae6][connect.success][2026-02-12T15:19:09.450Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][abeff263-2ada-495b-989c-e7be7cbb3eef][schema.init.success][2026-02-12T15:19:09.454Z] {
+  "table": "tasks"
+}
+[task-service][be76d7dc-fefc-4bbe-90b9-3fda20dfb8af][manual_task.create_success][2026-02-12T15:19:09.464Z] {
+  "taskId": 35,
+  "scheduleId": "sch-wecom-1",
+  "creatorId": "zhangsan",
+  "executorUserId": "lisi",
+  "ownerUserId": "lisi",
+  "ownerCalendarId": "cal-lisi",
+  "source": "unit_test"
+}
+[app][96641646-0751-46bf-9123-f0248c7bf7d9][startup.success][2026-02-12T15:20:05.201Z] {
+  "port": "80",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][1f7988f7-93e4-42c9-a8d4-81b1226d101a][startup.trigger][2026-02-12T15:20:05.211Z] {
+  "reason": "service_start"
+}
+[sync-service][41705886-d5aa-43a7-9b9f-227db165d53e][sync.skip][2026-02-12T15:20:05.211Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][2460082f-fe86-4bd0-9304-003e84fb8a7f][connect.success][2026-02-12T15:20:05.212Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][9e98a50a-05a7-4100-b501-667114212b3b][schema.init.success][2026-02-12T15:20:05.219Z] {
+  "table": "tasks"
+}
+[http-global][70d01633-70fb-4a2b-9f47-ce27ccc49e2e][request.in][2026-02-12T15:20:07.675Z] {
+  "method": "HEAD",
+  "originalUrl": "/api/auth/login?mode=qr",
+  "headers": {
+    "host": "127.0.0.1",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "mode": "qr"
+  },
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[api][70d01633-70fb-4a2b-9f47-ce27ccc49e2e][auth.login.redirect][2026-02-12T15:20:07.677Z] {
+  "mode": "QR",
+  "callbackBaseUrl": "http://justin.yiyuehk.com",
+  "redirectUri": "http://justin.yiyuehk.com/api/auth/callback",
+  "loginUrl": "https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=ww3e28770f5faf044f&agentid=1000002&redirect_uri=http%3A%2F%2Fjustin.yiyuehk.com%2Fapi%2Fauth%2Fcallback&state=STATE"
+}
+[http-global][70d01633-70fb-4a2b-9f47-ce27ccc49e2e][response.out][2026-02-12T15:20:07.683Z] {
+  "method": "HEAD",
+  "originalUrl": "/api/auth/login?mode=qr",
+  "statusCode": 302,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "70d01633-70fb-4a2b-9f47-ce27ccc49e2e",
+    "location": "https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=ww3e28770f5faf044f&agentid=1000002&redirect_uri=http%3A%2F%2Fjustin.yiyuehk.com%2Fapi%2Fauth%2Fcallback&state=STATE",
+    "vary": "Accept",
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "196"
+  },
+  "durationMs": 8
+}
+[app][68a00d2b-9bcc-4b42-bdfc-7d52e51fc9a5][startup.success][2026-02-12T15:28:44.421Z] {
+  "port": "80",
+  "mode": "integrated",
+  "staticDir": "/Users/apus/Documents/UGit/wecom-task-bot/frontend/dist"
+}
+[sync-service][722c5adc-2041-46f8-a2ee-27c376938540][startup.trigger][2026-02-12T15:28:44.434Z] {
+  "reason": "service_start"
+}
+[sync-service][5a45189a-de5b-41ae-b6b0-ba5616c1beeb][sync.skip][2026-02-12T15:28:44.435Z] {
+  "reason": "missing_calendar_targets"
+}
+[db][2f83febc-92c5-42ac-b48c-a0fa605b4269][connect.success][2026-02-12T15:28:44.435Z] {
+  "dbPath": "/Users/apus/Documents/UGit/wecom-task-bot/backend/database/tasks.db"
+}
+[db][4260dddc-4521-491c-8cd2-bb87d2bdc5fe][schema.init.success][2026-02-12T15:28:44.450Z] {
+  "table": "tasks"
+}
+[sync-service][21aebf05-6355-4f7a-b44d-c11ec84fe037][cron.tick][2026-02-12T15:30:00.556Z] {
+  "schedule": "*/10 * * * *"
+}
+[sync-service][c2b3066c-e2c6-4a04-8d89-5b40822bc49d][sync.skip][2026-02-12T15:30:00.559Z] {
+  "reason": "missing_calendar_targets"
+}
+[http-global][61ea2096-3b05-4bbf-b8bd-6292265e0e3b][request.in][2026-02-12T15:30:58.045Z] {
+  "method": "HEAD",
+  "originalUrl": "/",
+  "headers": {
+    "host": "127.0.0.1",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {},
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[http-global][61ea2096-3b05-4bbf-b8bd-6292265e0e3b][response.out][2026-02-12T15:30:58.051Z] {
+  "method": "HEAD",
+  "originalUrl": "/",
+  "statusCode": 200,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "61ea2096-3b05-4bbf-b8bd-6292265e0e3b",
+    "accept-ranges": "bytes",
+    "cache-control": "public, max-age=0",
+    "last-modified": "Thu, 12 Feb 2026 14:58:32 GMT",
+    "etag": "W/\"5b4-19c525c649f\"",
+    "content-type": "text/html; charset=UTF-8",
+    "content-length": 1460
+  },
+  "durationMs": 6
+}
+[http-global][5fe0058a-2dc4-48e0-8d9b-98cb00e2eeb4][request.in][2026-02-12T15:30:58.117Z] {
+  "method": "HEAD",
+  "originalUrl": "/api/auth/login?mode=qr",
+  "headers": {
+    "host": "127.0.0.1",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*"
+  },
+  "query": {
+    "mode": "qr"
+  },
+  "params": {},
+  "body": {},
+  "ip": "::ffff:127.0.0.1"
+}
+[api][5fe0058a-2dc4-48e0-8d9b-98cb00e2eeb4][auth.login.redirect][2026-02-12T15:30:58.119Z] {
+  "mode": "QR",
+  "callbackBaseUrl": "http://justin.yiyuehk.com",
+  "redirectUri": "http://justin.yiyuehk.com/api/auth/callback",
+  "loginUrl": "https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=ww3e28770f5faf044f&agentid=1000002&redirect_uri=http%3A%2F%2Fjustin.yiyuehk.com%2Fapi%2Fauth%2Fcallback&state=STATE"
+}
+[http-global][5fe0058a-2dc4-48e0-8d9b-98cb00e2eeb4][response.out][2026-02-12T15:30:58.122Z] {
+  "method": "HEAD",
+  "originalUrl": "/api/auth/login?mode=qr",
+  "statusCode": 302,
+  "responseHeaders": {
+    "x-powered-by": "Express",
+    "access-control-allow-origin": "*",
+    "x-trace-id": "5fe0058a-2dc4-48e0-8d9b-98cb00e2eeb4",
+    "location": "https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=ww3e28770f5faf044f&agentid=1000002&redirect_uri=http%3A%2F%2Fjustin.yiyuehk.com%2Fapi%2Fauth%2Fcallback&state=STATE",
+    "vary": "Accept",
+    "content-type": "text/plain; charset=utf-8",
+    "content-length": "196"
+  },
+  "durationMs": 5
+}
