@@ -257,7 +257,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{t.creator}</span>
                     <div className="flex items-center gap-2">
                       <img
-                        src={task.creator.avatar || 'https://via.placeholder.com/24'}
+                        src={task.creator.avatar || '/logo.png'}
                         alt=""
                         className="w-6 h-6 rounded-full border border-white shadow-sm"
                       />
@@ -269,7 +269,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
                     <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{t.executor}</span>
                     <div className="flex items-center gap-2">
                       <img
-                        src={task.executor.avatar || 'https://via.placeholder.com/24'}
+                        src={task.executor.avatar || '/logo.png'}
                         alt=""
                         className="w-6 h-6 rounded-full border border-white shadow-sm"
                       />

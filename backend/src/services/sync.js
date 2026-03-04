@@ -2,6 +2,7 @@ const wecom = require('./wecom');
 const cron = require('node-cron');
 const { taskService } = require('./task');
 const { buildSyncCalendarTargets } = require('./calendar-mapping');
+const userCalendarStore = require('./user-calendar-store');
 const { logWithTrace, createTraceId } = require('../utils/logger');
 
 class SyncService {
@@ -14,11 +15,113 @@ class SyncService {
   // 是什么：同步目标日历解析函数。
   // 做什么：融合员工映射与默认日历配置，生成最终同步目标列表。
   // 为什么：支持“每员工一个 cal_id”方案，同时兼容历史默认日历模式。
-  resolveSyncCalendarTargets() {
+  async resolveSyncCalendarTargets() {
+    const userCalendarRows = await userCalendarStore.listUserCalendarRows();
     return buildSyncCalendarTargets({
       defaultCalId: process.env.DEFAULT_CAL_ID || this.defaultCalId,
       userCalendarMapRaw: process.env.USER_CALENDAR_MAP || this.userCalendarMapRaw,
+      userCalendarRows,
     });
+  }
+
+  // resolveWeComErrorReason
+  // 是什么：企业微信错误码语义映射函数。
+  // 做什么：将关键错误码映射为稳定 reason，便于前端与日志做精确提示。
+  // 为什么：仅返回原始 errmsg 可读性差，且无法在界面层进行结构化处理。
+  resolveWeComErrorReason(errcode, fallbackReason) {
+    if (Number(errcode) === 60020) {
+      return 'wecom_ip_not_allowed';
+    }
+
+    return fallbackReason;
+  }
+
+  // resolveSyncPageLimit
+  // 是什么：同步分页大小解析函数。
+  // 做什么：读取并约束 `WECOM_SYNC_PAGE_LIMIT` 到 `1~1000`，缺省回退为 `500`。
+  // 为什么：企业微信 `get_by_calendar` 分页上限是 1000，统一收口避免配置越界。
+  resolveSyncPageLimit() {
+    const rawLimit = Number(process.env.WECOM_SYNC_PAGE_LIMIT || 500);
+    if (!Number.isFinite(rawLimit)) {
+      return 500;
+    }
+
+    const normalizedLimit = Math.floor(rawLimit);
+    return Math.min(1000, Math.max(1, normalizedLimit));
+  }
+
+  // resolveSyncMaxPages
+  // 是什么：同步分页最大页数解析函数。
+  // 做什么：读取 `WECOM_SYNC_MAX_PAGES`，缺省 200 页，防止异常数据导致死循环。
+  // 为什么：分页接口在极端情况下可能持续返回满页数据，需要硬性保险阈值。
+  resolveSyncMaxPages() {
+    const rawMaxPages = Number(process.env.WECOM_SYNC_MAX_PAGES || 200);
+    if (!Number.isFinite(rawMaxPages)) {
+      return 200;
+    }
+
+    return Math.max(1, Math.floor(rawMaxPages));
+  }
+
+  // fetchCalendarSchedules
+  // 是什么：日历全量分页拉取函数。
+  // 做什么：通过 `offset + limit` 循环调用 `get_by_calendar`，直到返回量小于分页大小为止。
+  // 为什么：官方接口需要分页读取，单次请求会导致大日历数据被截断。
+  async fetchCalendarSchedules(calId) {
+    const traceId = createTraceId();
+    const pageLimit = this.resolveSyncPageLimit();
+    const maxPages = this.resolveSyncMaxPages();
+    const scheduleList = [];
+    let offset = 0;
+    let pageCount = 0;
+
+    while (true) {
+      if (pageCount >= maxPages) {
+        return {
+          success: false,
+          reason: 'wecom_schedule_list_page_limit_exceeded',
+          errcode: -1,
+          errmsg: `分页拉取超限: max_pages=${maxPages}`,
+        };
+      }
+
+      pageCount += 1;
+      const scheduleListResult = await wecom.getScheduleList(calId, offset, pageLimit);
+
+      if (!scheduleListResult || scheduleListResult.errcode !== 0) {
+        return {
+          success: false,
+          errcode: scheduleListResult && scheduleListResult.errcode,
+          errmsg: scheduleListResult && scheduleListResult.errmsg,
+          reason: this.resolveWeComErrorReason(
+            scheduleListResult && scheduleListResult.errcode,
+            'wecom_schedule_list_failed'
+          ),
+        };
+      }
+
+      const pageRows = Array.isArray(scheduleListResult.schedule_list) ? scheduleListResult.schedule_list : [];
+      scheduleList.push(...pageRows);
+
+      logWithTrace(traceId, 'sync-service', 'calendar.page.fetched', {
+        calId,
+        offset,
+        pageLimit,
+        pageCount,
+        pageScheduleCount: pageRows.length,
+        totalScheduleCount: scheduleList.length,
+      });
+
+      if (pageRows.length < pageLimit) {
+        return {
+          success: true,
+          schedules: scheduleList,
+          page_count: pageCount,
+        };
+      }
+
+      offset += pageRows.length;
+    }
   }
 
   start() {
@@ -38,7 +141,7 @@ class SyncService {
 
   async syncSchedules() {
     const traceId = createTraceId();
-    const calendarTargets = this.resolveSyncCalendarTargets();
+    const calendarTargets = await this.resolveSyncCalendarTargets();
 
     if (calendarTargets.length === 0) {
       logWithTrace(traceId, 'sync-service', 'sync.skip', {
@@ -83,24 +186,22 @@ class SyncService {
           continue;
         }
 
-        const scheduleListResult = await wecom.getScheduleList(calId);
-        if (scheduleListResult.errcode !== 0) {
+        const scheduleFetchResult = await this.fetchCalendarSchedules(calId);
+        if (!scheduleFetchResult.success) {
           summary.calendar_failed_count += 1;
           summary.calendar_errors.push({
             user_id: ownerUserId || '',
             cal_id: calId,
-            reason: 'wecom_schedule_list_failed',
-            errcode: scheduleListResult.errcode,
-            errmsg: scheduleListResult.errmsg,
+            reason: scheduleFetchResult.reason || 'wecom_schedule_list_failed',
+            errcode: scheduleFetchResult.errcode,
+            errmsg: scheduleFetchResult.errmsg,
           });
           continue;
         }
 
         summary.calendar_success_count += 1;
 
-        const schedules = Array.isArray(scheduleListResult.schedule_list)
-          ? scheduleListResult.schedule_list
-          : [];
+        const schedules = Array.isArray(scheduleFetchResult.schedules) ? scheduleFetchResult.schedules : [];
         summary.schedule_count += schedules.length;
 
         for (const item of schedules) {
@@ -154,11 +255,14 @@ class SyncService {
       });
 
       const details = await wecom.getSchedule(scheduleId);
-      if (details.errcode !== 0 || !details.schedule) {
+      const detailScheduleList = Array.isArray(details && details.schedule_list) ? details.schedule_list : [];
+      const detailSchedule = (details && details.schedule) || detailScheduleList[0] || null;
+
+      if (!details || details.errcode !== 0 || !detailSchedule) {
         logWithTrace(traceId, 'sync-service', 'schedule.process.reject', {
           scheduleId,
-          errcode: details.errcode,
-          errmsg: details.errmsg,
+          errcode: details && details.errcode,
+          errmsg: details && details.errmsg,
         });
 
         return {
@@ -169,7 +273,7 @@ class SyncService {
         };
       }
 
-      const result = await taskService.syncScheduleTask(details.schedule, calendarContext);
+      const result = await taskService.syncScheduleTask(detailSchedule, calendarContext);
       logWithTrace(traceId, 'sync-service', 'schedule.process.success', {
         scheduleId,
         calendarContext,

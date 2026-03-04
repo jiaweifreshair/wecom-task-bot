@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   LayoutDashboard,
+  CalendarDays,
   CheckSquare,
   Users,
   Settings,
@@ -17,6 +18,7 @@ import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import TeamStats from './pages/TeamStats';
 import SettingsPage from './pages/Settings';
+import CalendarManager from './pages/CalendarManager';
 import { useTranslation } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import {
@@ -29,7 +31,7 @@ import {
   type BackendTaskRow,
 } from './api';
 
-type View = 'DASHBOARD' | 'TASKS' | 'TEAM' | 'SETTINGS';
+type View = 'DASHBOARD' | 'TASKS' | 'CALENDAR' | 'TEAM' | 'SETTINGS';
 
 const mapTaskStatus = (status: string): TaskStatus => {
   if (status === TaskStatus.PENDING) {
@@ -121,7 +123,7 @@ const MainApp: React.FC = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const { t, language, setLanguage } = useTranslation();
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (options: { throwOnError?: boolean } = {}) => {
     if (!user) {
       setTasks([]);
       setKpi(emptyKpi);
@@ -137,6 +139,9 @@ const MainApp: React.FC = () => {
       console.error(error);
       setTasks([]);
       setKpi(emptyKpi);
+      if (options.throwOnError) {
+        throw error;
+      }
     } finally {
       setLoadingTasks(false);
     }
@@ -183,10 +188,33 @@ const MainApp: React.FC = () => {
   };
 
   const handleSyncTasks = async () => {
+    setSyncing(true);
+
     try {
-      setSyncing(true);
-      await syncTasks();
-      await loadTasks();
+      const syncResult = await syncTasks();
+      const syncFailed = Boolean(syncResult && syncResult.result && syncResult.result.success === false);
+
+      if (syncFailed) {
+        const syncReason = String(syncResult.result.reason || '').trim();
+        if (syncReason === 'missing_calendar_targets') {
+          alert(t.syncConfigMissing);
+          return;
+        }
+
+        if (syncReason === 'wecom_ip_not_allowed') {
+          alert(t.syncIpNotAllowed);
+          return;
+        }
+
+        alert(t.syncFailed);
+        return;
+      }
+      try {
+        await loadTasks({ throwOnError: true });
+      } catch (error) {
+        console.error(error);
+        alert(t.syncRefreshFailed);
+      }
     } catch (error) {
       console.error(error);
       alert(t.syncFailed);
@@ -316,6 +344,7 @@ const MainApp: React.FC = () => {
         <div className="p-4 space-y-1">
           <NavItem view="DASHBOARD" icon={LayoutDashboard} label={t.dashboard} />
           <NavItem view="TASKS" icon={CheckSquare} label={t.taskList} />
+          <NavItem view="CALENDAR" icon={CalendarDays} label={t.calendarManage} />
           <NavItem view="TEAM" icon={Users} label={t.teamStats} />
           <div className="pt-4 mt-4 border-t border-slate-800">
             <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t.system}</p>
@@ -326,7 +355,7 @@ const MainApp: React.FC = () => {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-slate-900/50">
           <div className="flex items-center gap-3">
             <img
-              src={user.avatar || 'https://via.placeholder.com/100'}
+              src={user.avatar || '/logo.png'}
               alt="User"
               className="w-10 h-10 rounded-full border-2 border-slate-700"
             />
@@ -356,6 +385,8 @@ const MainApp: React.FC = () => {
                   ? t.dashboard
                   : currentView === 'TASKS'
                   ? t.taskList
+                  : currentView === 'CALENDAR'
+                  ? t.calendarManage
                   : currentView === 'TEAM'
                   ? t.teamStats
                   : t.settings}
@@ -414,6 +445,7 @@ const MainApp: React.FC = () => {
                     onVerifyTask={handleVerifyTask}
                   />
                 )}
+                {currentView === 'CALENDAR' && <CalendarManager />}
                 {currentView === 'TEAM' && <TeamStats tasks={tasks} />}
                 {currentView === 'SETTINGS' && <SettingsPage onSyncTasks={handleSyncTasks} />}
               </>

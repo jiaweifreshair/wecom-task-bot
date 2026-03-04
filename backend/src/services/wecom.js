@@ -34,6 +34,12 @@ const DEFAULT_WECOM_DNS_SERVERS = ['8.8.8.8', '1.1.1.1'];
 // 为什么：联调与生产都需要可预期失败时间，提升可观测性与稳定性。
 const DEFAULT_WECOM_HTTP_TIMEOUT_MS = 15000;
 
+// USER_LIST_RETRY_ERRCODES
+// 是什么：组织成员查询可回退错误码集合。
+// 做什么：定义在 `user/list` 响应这些错误码时允许切换到下一套 Secret 重试。
+// 为什么：通讯录 Secret 与应用 Secret 的权限或可信 IP 可能配置不一致，需要容错回退保障可用性。
+const USER_LIST_RETRY_ERRCODES = new Set([60011, 60020]);
+
 // parseCommaList
 // 是什么：逗号分隔配置解析函数。
 // 做什么：将字符串配置解析为去空白、去空值后的数组。
@@ -60,6 +66,33 @@ const sanitizeCreateSchedulePayload = (schedule = {}) => {
   return {
     schedule: normalizedSchedule,
   };
+};
+
+// buildCreateCalendarPayload
+// 是什么：创建日历请求体构建函数。
+// 做什么：优先透传 `options.calendar`，缺失时回退到 `summary/color/description` 组合，并按需注入 agentid。
+// 为什么：页面管理场景需要支持完整日历字段，而登录自动建历仍需兼容旧参数格式。
+const buildCreateCalendarPayload = (options = {}, defaultAgentId = '') => {
+  const hasCalendarObject =
+    options && typeof options === 'object' && options.calendar && typeof options.calendar === 'object';
+  const payload = {
+    calendar: hasCalendarObject
+      ? { ...options.calendar }
+      : {
+          summary: normalizeTextValue(options.summary),
+          color: normalizeTextValue(options.color),
+          description: normalizeTextValue(options.description),
+        },
+  };
+
+  const rawAgentId =
+    options && options.agentid !== undefined && options.agentid !== null ? options.agentid : defaultAgentId;
+  const normalizedAgentId = Number(rawAgentId || 0);
+  if (Number.isFinite(normalizedAgentId) && normalizedAgentId > 0) {
+    payload.agentid = normalizedAgentId;
+  }
+
+  return payload;
 };
 
 // pickFirstIpv4Address
@@ -123,6 +156,7 @@ class WeComService {
     this.corpId = process.env.CORP_ID;
     this.agentId = process.env.AGENT_ID;
     this.corpSecret = process.env.CORP_SECRET;
+    this.contactSecret = normalizeTextValue(process.env.WECOM_CONTACT_SECRET) || normalizeTextValue(process.env.CONTACT_SECRET);
     this.wecomHost = normalizeTextValue(process.env.WECOM_API_HOST) || DEFAULT_WECOM_HOST;
     this.fallbackIps = parseCommaList(process.env.WECOM_DNS_FALLBACK_IPS);
     this.dnsServers = (() => {
@@ -149,6 +183,7 @@ class WeComService {
     });
     this.accessToken = null;
     this.tokenExpires = 0;
+    this.tokenCache = {};
   }
 
   // buildAxiosConfig
@@ -156,9 +191,14 @@ class WeComService {
   // 做什么：统一注入超时与 `httpsAgent`，确保请求共享同一网络容灾策略。
   // 为什么：分散配置易遗漏，统一入口可避免局部请求未应用容灾能力。
   buildAxiosConfig() {
+    // disableEnvProxy
+    // 是什么：环境代理禁用配置。
+    // 做什么：通过 `proxy: false` 阻止 axios 继承 `ALL_PROXY/HTTPS_PROXY`。
+    // 为什么：当前运行环境存在 `socks5://` 代理变量，会触发 follow-redirects 的 protocol mismatch。
     return {
       timeout: this.httpTimeoutMs,
       httpsAgent: this.httpsAgent,
+      proxy: false,
     };
   }
 
@@ -314,36 +354,51 @@ class WeComService {
   /**
    * Get or Refresh Access Token
    */
-  async getAccessToken() {
+  async getAccessToken(options = {}) {
     const traceId = createTraceId();
+    const corpSecret = normalizeTextValue(options.corpSecret) || this.corpSecret;
+    const cacheKey = normalizeTextValue(options.cacheKey) || 'default';
     const now = Date.now();
-    if (this.accessToken && now < this.tokenExpires) {
+    const cachedToken = this.tokenCache[cacheKey];
+
+    if (cachedToken && cachedToken.accessToken && now < cachedToken.tokenExpires) {
       logWithTrace(traceId, 'wecom-service', 'access_token.cache.hit', {
-        expiresAt: this.tokenExpires
+        cacheKey,
+        expiresAt: cachedToken.tokenExpires
       });
-      return this.accessToken;
+      return cachedToken.accessToken;
     }
 
     try {
-      const url = `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${this.corpId}&corpsecret=${this.corpSecret}`;
+      const url = `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${this.corpId}&corpsecret=${corpSecret}`;
       logWithTrace(traceId, 'wecom-service', 'access_token.fetch.start', {
         endpoint: 'https://qyapi.weixin.qq.com/cgi-bin/gettoken',
+        cacheKey,
         hasCorpId: Boolean(this.corpId),
-        hasCorpSecret: Boolean(this.corpSecret),
+        hasCorpSecret: Boolean(corpSecret),
       });
       const response = await this.requestGet(url);
 
       if (response.data.errcode === 0) {
-        this.accessToken = response.data.access_token;
-        // Buffer 5 minutes
-        this.tokenExpires = now + (response.data.expires_in - 300) * 1000;
+        const tokenExpires = now + (response.data.expires_in - 300) * 1000;
+        this.tokenCache[cacheKey] = {
+          accessToken: response.data.access_token,
+          tokenExpires,
+        };
+        // 为兼容历史读取字段，默认 token 同步回旧字段。
+        if (cacheKey === 'default') {
+          this.accessToken = response.data.access_token;
+          this.tokenExpires = tokenExpires;
+        }
         logWithTrace(traceId, 'wecom-service', 'access_token.fetch.success', {
+          cacheKey,
           expiresIn: response.data.expires_in,
-          tokenExpiresAt: this.tokenExpires
+          tokenExpiresAt: tokenExpires
         });
-        return this.accessToken;
+        return response.data.access_token;
       } else {
         logWithTrace(traceId, 'wecom-service', 'access_token.fetch.reject', {
+          cacheKey,
           errcode: response.data.errcode,
           errmsg: response.data.errmsg
         });
@@ -384,6 +439,49 @@ class WeComService {
       ...(response.data || {}),
       schedule_list: scheduleList,
       schedule: scheduleList[0] || null,
+    };
+  }
+
+  // getSchedules
+  // 是什么：企业微信日程详情批量查询函数。
+  // 做什么：通过 `schedule_id_list` 批量拉取日程详情并返回标准化 `schedule_list`。
+  // 为什么：管理页和 API 网关都需要一次查询多条日程，避免逐条请求导致性能浪费。
+  async getSchedules(scheduleIdList = []) {
+    const traceId = createTraceId();
+    const normalizedScheduleIdList = (Array.isArray(scheduleIdList) ? scheduleIdList : [scheduleIdList])
+      .map((item) => normalizeTextValue(item))
+      .filter(Boolean);
+
+    if (normalizedScheduleIdList.length === 0) {
+      return {
+        errcode: 0,
+        errmsg: 'ok',
+        schedule_list: [],
+      };
+    }
+
+    const token = await this.getAccessToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/get?access_token=${token}`;
+    logWithTrace(traceId, 'wecom-service', 'schedule.get.batch.start', {
+      scheduleCount: normalizedScheduleIdList.length,
+    });
+    const response = await this.requestPost(url, {
+      schedule_id_list: normalizedScheduleIdList,
+    });
+    const scheduleList = Array.isArray(response.data && response.data.schedule_list)
+      ? response.data.schedule_list
+      : [];
+
+    logWithTrace(traceId, 'wecom-service', 'schedule.get.batch.success', {
+      scheduleCount: normalizedScheduleIdList.length,
+      errcode: response.data && response.data.errcode,
+      errmsg: response.data && response.data.errmsg,
+      resultCount: scheduleList.length,
+    });
+
+    return {
+      ...(response.data || {}),
+      schedule_list: scheduleList,
     };
   }
 
@@ -449,27 +547,22 @@ class WeComService {
     const traceId = createTraceId();
     const token = await this.getAccessToken();
     const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/add?access_token=${token}`;
-    const summary = normalizeTextValue(options.summary);
-    const color = normalizeTextValue(options.color);
-    const description = normalizeTextValue(options.description);
-    const agentId = Number(options.agentid || this.agentId || 0);
-    const body = {
-      calendar: {
-        summary,
-        color,
-        description,
-      },
-    };
-
-    if (Number.isFinite(agentId) && agentId > 0) {
-      body.agentid = agentId;
-    }
+    const body = buildCreateCalendarPayload(options, this.agentId);
+    const summary = normalizeTextValue(body && body.calendar && body.calendar.summary);
+    const color = normalizeTextValue(body && body.calendar && body.calendar.color);
+    const description = normalizeTextValue(body && body.calendar && body.calendar.description);
 
     logWithTrace(traceId, 'wecom-service', 'calendar.create.start', {
       hasSummary: Boolean(summary),
       color,
       hasDescription: Boolean(description),
       hasAgentId: Boolean(body.agentid),
+      adminCount: Array.isArray(body && body.calendar && body.calendar.admins)
+        ? body.calendar.admins.length
+        : 0,
+      shareCount: Array.isArray(body && body.calendar && body.calendar.shares)
+        ? body.calendar.shares.length
+        : 0,
     });
 
     const response = await this.requestPost(url, body);
@@ -479,6 +572,67 @@ class WeComService {
       calId: response.data && response.data.cal_id,
     });
 
+    return response.data;
+  }
+
+  // updateCalendar
+  // 是什么：企业微信日历更新函数。
+  // 做什么：调用 `oa/calendar/update` 覆盖更新指定日历，支持 `skip_public_range` 可选参数。
+  // 为什么：日历维护页面需要完整编辑能力，必须与官方“覆盖更新”语义保持一致。
+  async updateCalendar(calendar = {}, options = {}) {
+    const traceId = createTraceId();
+    const token = await this.getAccessToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/update?access_token=${token}`;
+    const payload = {
+      calendar: calendar && typeof calendar === 'object' ? { ...calendar } : {},
+    };
+    const skipPublicRange = options && options.skip_public_range;
+    if (skipPublicRange !== undefined && skipPublicRange !== null) {
+      payload.skip_public_range = skipPublicRange;
+    }
+
+    logWithTrace(traceId, 'wecom-service', 'calendar.update.start', {
+      calId: payload.calendar && payload.calendar.cal_id,
+      hasSummary: Boolean(payload.calendar && payload.calendar.summary),
+      skipPublicRange: payload.skip_public_range,
+    });
+
+    const response = await this.requestPost(url, payload);
+    logWithTrace(traceId, 'wecom-service', 'calendar.update.success', {
+      calId: payload.calendar && payload.calendar.cal_id,
+      errcode: response.data && response.data.errcode,
+      errmsg: response.data && response.data.errmsg,
+    });
+    return response.data;
+  }
+
+  // deleteCalendar
+  // 是什么：企业微信日历删除函数。
+  // 做什么：调用 `oa/calendar/del` 删除指定 `cal_id` 日历。
+  // 为什么：页面管理闭环需要支持无效日历清理与重建流程。
+  async deleteCalendar(calId) {
+    const traceId = createTraceId();
+    const normalizedCalId = normalizeTextValue(calId);
+    if (!normalizedCalId) {
+      throw new Error('cal_id 不能为空');
+    }
+
+    const token = await this.getAccessToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/del?access_token=${token}`;
+    const payload = {
+      cal_id: normalizedCalId,
+    };
+
+    logWithTrace(traceId, 'wecom-service', 'calendar.delete.start', {
+      calId: normalizedCalId,
+    });
+
+    const response = await this.requestPost(url, payload);
+    logWithTrace(traceId, 'wecom-service', 'calendar.delete.success', {
+      calId: normalizedCalId,
+      errcode: response.data && response.data.errcode,
+      errmsg: response.data && response.data.errmsg,
+    });
     return response.data;
   }
 
@@ -596,6 +750,72 @@ class WeComService {
     return response.data;
   }
 
+  // addScheduleAttendees
+  // 是什么：日程参与人增量添加函数。
+  // 做什么：调用 `oa/schedule/add_attendees` 将成员追加到现有日程。
+  // 为什么：文档要求该接口走增量模式，避免覆盖式更新参与人列表。
+  async addScheduleAttendees(scheduleId, attendees = []) {
+    const traceId = createTraceId();
+    const normalizedScheduleId = normalizeTextValue(scheduleId);
+    if (!normalizedScheduleId) {
+      throw new Error('schedule_id 不能为空');
+    }
+
+    const token = await this.getAccessToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/add_attendees?access_token=${token}`;
+    const payload = {
+      schedule_id: normalizedScheduleId,
+      attendees: Array.isArray(attendees) ? attendees : [],
+    };
+
+    logWithTrace(traceId, 'wecom-service', 'schedule.attendees.add.start', {
+      scheduleId: normalizedScheduleId,
+      attendeeCount: payload.attendees.length,
+    });
+
+    const response = await this.requestPost(url, payload);
+    logWithTrace(traceId, 'wecom-service', 'schedule.attendees.add.success', {
+      scheduleId: normalizedScheduleId,
+      errcode: response.data && response.data.errcode,
+      errmsg: response.data && response.data.errmsg,
+    });
+
+    return response.data;
+  }
+
+  // removeScheduleAttendees
+  // 是什么：日程参与人增量删除函数。
+  // 做什么：调用 `oa/schedule/del_attendees` 从现有日程移除成员。
+  // 为什么：配合新增参与人接口形成增量维护闭环，避免全量覆盖带来的并发冲突。
+  async removeScheduleAttendees(scheduleId, attendees = []) {
+    const traceId = createTraceId();
+    const normalizedScheduleId = normalizeTextValue(scheduleId);
+    if (!normalizedScheduleId) {
+      throw new Error('schedule_id 不能为空');
+    }
+
+    const token = await this.getAccessToken();
+    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/del_attendees?access_token=${token}`;
+    const payload = {
+      schedule_id: normalizedScheduleId,
+      attendees: Array.isArray(attendees) ? attendees : [],
+    };
+
+    logWithTrace(traceId, 'wecom-service', 'schedule.attendees.remove.start', {
+      scheduleId: normalizedScheduleId,
+      attendeeCount: payload.attendees.length,
+    });
+
+    const response = await this.requestPost(url, payload);
+    logWithTrace(traceId, 'wecom-service', 'schedule.attendees.remove.success', {
+      scheduleId: normalizedScheduleId,
+      errcode: response.data && response.data.errcode,
+      errmsg: response.data && response.data.errmsg,
+    });
+
+    return response.data;
+  }
+
   /**
    * Send Template Card (Interactive Message)
    * @param {Object} config Card configuration
@@ -654,6 +874,95 @@ class WeComService {
     });
     return response.data;
   }
+  /**
+   * List Users By Department
+   * @param {number} departmentId
+   * @param {number} fetchChild
+   * @param {number} status
+   */
+  async listUsersByDepartment(departmentId = 1, fetchChild = 1, status = 0) {
+    const traceId = createTraceId();
+    const normalizedDepartmentId = Number(departmentId) > 0 ? Number(departmentId) : 1;
+    const normalizedFetchChild = Number(fetchChild) === 1 ? 1 : 0;
+    const normalizedStatus = Number(status) >= 0 ? Number(status) : 0;
+    // tokenCandidates
+    // 是什么：组织成员查询 token 候选列表。
+    // 做什么：优先尝试通讯录 Secret，失败后回退默认 Secret。
+    // 为什么：不同 Secret 可能存在“可信 IP/权限”配置差异，回退可降低单点配置问题影响。
+    const tokenCandidates = [];
+    if (this.contactSecret && normalizeTextValue(this.contactSecret) !== normalizeTextValue(this.corpSecret)) {
+      tokenCandidates.push({
+        source: 'contact',
+        tokenOptions: { corpSecret: this.contactSecret, cacheKey: 'contact' },
+      });
+    }
+    tokenCandidates.push({
+      source: 'default',
+      tokenOptions: { cacheKey: 'default' },
+    });
+
+    let lastResponseData = null;
+    let lastError = null;
+
+    for (let index = 0; index < tokenCandidates.length; index += 1) {
+      const candidate = tokenCandidates[index];
+      const isLastCandidate = index === tokenCandidates.length - 1;
+
+      try {
+        const token = await this.getAccessToken(candidate.tokenOptions);
+        const url = `https://qyapi.weixin.qq.com/cgi-bin/user/list?access_token=${token}&department_id=${normalizedDepartmentId}&fetch_child=${normalizedFetchChild}&status=${normalizedStatus}`;
+
+        logWithTrace(traceId, 'wecom-service', 'users.list.start', {
+          departmentId: normalizedDepartmentId,
+          fetchChild: normalizedFetchChild,
+          status: normalizedStatus,
+          tokenSource: candidate.source,
+        });
+
+        const response = await this.requestGet(url);
+        const responseData = (response && response.data) || {};
+        const errcode = Number(responseData.errcode);
+
+        logWithTrace(traceId, 'wecom-service', 'users.list.success', {
+          tokenSource: candidate.source,
+          errcode: responseData.errcode,
+          errmsg: responseData.errmsg,
+          userCount: Array.isArray(responseData.userlist) ? responseData.userlist.length : 0,
+        });
+
+        lastResponseData = responseData;
+        if (errcode === 0 || isLastCandidate || !USER_LIST_RETRY_ERRCODES.has(errcode)) {
+          return responseData;
+        }
+
+        logWithTrace(traceId, 'wecom-service', 'users.list.retry.next_secret', {
+          currentTokenSource: candidate.source,
+          nextTokenSource: tokenCandidates[index + 1] && tokenCandidates[index + 1].source,
+          errcode,
+          errmsg: responseData.errmsg,
+        });
+      } catch (error) {
+        lastError = error;
+        if (isLastCandidate) {
+          break;
+        }
+
+        logWithTrace(traceId, 'wecom-service', 'users.list.retry.next_secret', {
+          currentTokenSource: candidate.source,
+          nextTokenSource: tokenCandidates[index + 1] && tokenCandidates[index + 1].source,
+          reason: 'request_exception',
+          message: error.message,
+        });
+      }
+    }
+
+    if (lastResponseData) {
+      return lastResponseData;
+    }
+
+    throw lastError || new Error('组织成员查询失败');
+  }
+
   /**
    * Get User Details
    * @param {string} userId

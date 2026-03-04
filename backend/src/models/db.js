@@ -137,6 +137,30 @@ db.serialize(() => {
       ensureTasksTableColumns();
     }
   });
+
+  db.run(
+    `CREATE TABLE IF NOT EXISTS user_calendar_map (
+      user_id TEXT PRIMARY KEY,
+      cal_id TEXT NOT NULL,
+      calendar_summary TEXT,
+      source TEXT DEFAULT 'auto_created',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        logWithTrace(traceId, 'db', 'schema.init.error', {
+          table: 'user_calendar_map',
+          message: err.message,
+        });
+        return;
+      }
+
+      logWithTrace(traceId, 'db', 'schema.init.success', {
+        table: 'user_calendar_map',
+      });
+    }
+  );
 });
 
 module.exports = db;

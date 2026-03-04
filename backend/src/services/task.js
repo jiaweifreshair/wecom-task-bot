@@ -12,6 +12,7 @@ const {
   shouldSendReminder,
 } = require('./task-lifecycle');
 const { resolveCalendarIdByUser } = require('./calendar-mapping');
+const userCalendarStore = require('./user-calendar-store');
 const { logWithTrace, createTraceId } = require('../utils/logger');
 
 class TaskOperationError extends Error {
@@ -115,6 +116,29 @@ class TaskService {
 
   async listPendingTasks() {
     return allSql(`SELECT * FROM tasks WHERE status = ?`, [TASK_STATUS.PENDING]);
+  }
+
+  // resolveOwnerCalendarId
+  // 是什么：任务归属日历解析函数。
+  // 做什么：融合环境变量映射与数据库映射，返回指定用户可用 `cal_id`。
+  // 为什么：登录自动建历会把映射写入数据库，任务创建需优先消费最新映射。
+  async resolveOwnerCalendarId(ownerUserId) {
+    let userCalendarRows = [];
+
+    try {
+      userCalendarRows = await userCalendarStore.listUserCalendarRows();
+    } catch (error) {
+      logWithTrace(createTraceId(), 'task-service', 'resolve_owner_calendar_id.db_error', {
+        ownerUserId,
+        message: error.message,
+      });
+    }
+
+    return resolveCalendarIdByUser(ownerUserId, {
+      defaultCalId: process.env.DEFAULT_CAL_ID || '',
+      userCalendarMapRaw: process.env.USER_CALENDAR_MAP || '',
+      userCalendarRows,
+    });
   }
 
   buildVerifierRecipients(task) {
@@ -344,10 +368,7 @@ class TaskService {
     }
 
     const ownerUserId = executorUserId || creatorId;
-    const ownerCalendarId = resolveCalendarIdByUser(ownerUserId, {
-      defaultCalId: process.env.DEFAULT_CAL_ID || '',
-      userCalendarMapRaw: process.env.USER_CALENDAR_MAP || '',
-    });
+    const ownerCalendarId = await this.resolveOwnerCalendarId(ownerUserId);
 
     let scheduleId = createManualScheduleId();
 
@@ -484,16 +505,23 @@ class TaskService {
       };
     }
 
+    const organizerUserId = normalizeText(
+      (schedule.organizer && schedule.organizer.userid) || schedule.organizer || schedule.creator_userid
+    );
     const executorUserId = this.pickExecutor(schedule);
+    const ownerFromCalendar = normalizeText(calendarContext.user_id);
+    // fallbackOwnerUserId
+    // 是什么：同步任务归属用户兜底值。
+    // 做什么：在日程缺失 organizer/attendees 时，回退到日历映射用户作为创建人与执行人。
+    // 为什么：部分历史/第三方日程缺少参与人字段，若直接跳过会导致看板长期无数据。
+    const fallbackOwnerUserId = ownerFromCalendar || organizerUserId || executorUserId;
     const taskPayload = {
       wecom_schedule_id: scheduleId,
       title: normalizeText(schedule.summary) || '未命名任务',
       description: normalizeText(schedule.description),
-      creator_userid: normalizeText(
-        (schedule.organizer && schedule.organizer.userid) || schedule.organizer || schedule.creator_userid
-      ),
-      executor_userid: executorUserId,
-      owner_userid: normalizeText(calendarContext.user_id) || executorUserId,
+      creator_userid: organizerUserId || fallbackOwnerUserId,
+      executor_userid: executorUserId || fallbackOwnerUserId,
+      owner_userid: ownerFromCalendar || executorUserId || organizerUserId || fallbackOwnerUserId,
       start_time: Number(schedule.start_time || 0),
       end_time: Number(schedule.end_time || 0),
       owner_cal_id: normalizeText(schedule.cal_id || schedule.calendar_id || calendarContext.cal_id),
@@ -504,7 +532,7 @@ class TaskService {
         inserted: false,
         updated: false,
         skipped: true,
-        reason: 'missing_creator_or_executor',
+        reason: 'missing_owner_context',
       };
     }
 

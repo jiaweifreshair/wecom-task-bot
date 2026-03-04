@@ -113,3 +113,36 @@ test('syncScheduleTask 应回写 owner_cal_id 字段', async () => {
     wecom.sendTemplateCard = originalSendTemplateCard;
   }
 });
+
+test('syncScheduleTask 在缺失参与人时应回退到日历归属用户', async () => {
+  const originalSendTemplateCard = wecom.sendTemplateCard;
+  wecom.sendTemplateCard = async () => ({ errcode: 0, errmsg: 'ok' });
+
+  try {
+    const syncResult = await taskService.syncScheduleTask(
+      {
+        schedule_id: 'schedule-no-attendee',
+        summary: '无参与人日程',
+        description: '仅有时间字段',
+        attendees: [],
+        start_time: 1760000000,
+        end_time: 1760003600,
+      },
+      {
+        user_id: 'JiaWei',
+        cal_id: 'cal-jiawei',
+      }
+    );
+
+    assert.equal(syncResult.inserted, true);
+
+    const rows = await allSql('SELECT * FROM tasks WHERE wecom_schedule_id = ?', ['schedule-no-attendee']);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].creator_userid, 'JiaWei');
+    assert.equal(rows[0].executor_userid, 'JiaWei');
+    assert.equal(rows[0].owner_userid, 'JiaWei');
+    assert.equal(rows[0].owner_cal_id, 'cal-jiawei');
+  } finally {
+    wecom.sendTemplateCard = originalSendTemplateCard;
+  }
+});

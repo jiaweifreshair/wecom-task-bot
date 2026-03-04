@@ -6,7 +6,9 @@ const jwt = require('jsonwebtoken');
 const syncService = require('../services/sync');
 const { taskService, TaskOperationError } = require('../services/task');
 const { parseGlobalVerifiers, mapTaskRowToApi, buildTaskKpi, normalizeText } = require('../services/task-lifecycle');
+const { resolveTaskQueryScope } = require('../services/task-scope');
 const { resolveAuthLoginMode, buildAuthLoginRedirectUrl } = require('../services/auth-login-url');
+const { userCalendarService } = require('../services/user-calendar');
 const { logWithTrace, createTraceId } = require('../utils/logger');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'wecom-task-bot-secret';
@@ -69,6 +71,100 @@ const getSql = (sql, params = []) => {
       resolve(row || null);
     });
   });
+};
+
+const runSql = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function onRun(err) {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve({
+        changes: this.changes || 0,
+        lastID: this.lastID,
+      });
+    });
+  });
+};
+
+// parseIdList
+// 是什么：ID 列表解析函数。
+// 做什么：兼容数组、逗号分隔字符串输入并输出去空去重结果。
+// 为什么：前端管理页与脚本调用格式可能不一致，需要统一在网关层归一化。
+const parseIdList = (value) => {
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map((item) => normalizeText(item)).filter(Boolean)));
+  }
+
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(',')
+        .map((item) => normalizeText(item))
+        .filter(Boolean)
+    )
+  );
+};
+
+// upsertUserCalendarMapping
+// 是什么：用户日历映射写入函数。
+// 做什么：以 `user_id` 为主键写入或更新 `cal_id/source/summary` 映射。
+// 为什么：日历管理页创建日历后，需要立刻将日历与账号绑定，形成后续查询闭环。
+const upsertUserCalendarMapping = async (input = {}) => {
+  const userId = normalizeText(input.user_id);
+  const calId = normalizeText(input.cal_id);
+  const source = normalizeText(input.source) || 'manual_bind';
+  const calendarSummary = normalizeText(input.calendar_summary);
+
+  if (!userId || !calId) {
+    return null;
+  }
+
+  await runSql(
+    `INSERT INTO user_calendar_map (
+      user_id,
+      cal_id,
+      calendar_summary,
+      source,
+      updated_at
+    ) VALUES (?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      cal_id = excluded.cal_id,
+      calendar_summary = excluded.calendar_summary,
+      source = excluded.source,
+      updated_at = datetime('now')`,
+    [userId, calId, calendarSummary, source]
+  );
+
+  return getSql(
+    `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at FROM user_calendar_map WHERE user_id = ? LIMIT 1`,
+    [userId]
+  );
+};
+
+// parsePositiveInteger
+// 是什么：正整数解析函数。
+// 做什么：将输入解析为正整数，非法时回退默认值并按上限截断。
+// 为什么：分页参数来自 URL 查询字符串，必须在入参边界处统一校验。
+const parsePositiveInteger = (value, fallbackValue, maxValue) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallbackValue;
+  }
+
+  const normalized = Math.floor(parsed);
+  if (!Number.isFinite(maxValue) || maxValue <= 0) {
+    return normalized;
+  }
+
+  return Math.min(normalized, maxValue);
 };
 
 // pickFirstForwardedValue
@@ -161,15 +257,27 @@ router.get('/tasks', authenticateToken, async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   const statusFilter = normalizeText(req.query.status).toUpperCase();
+  const requestedScope = normalizeText(req.query.scope).toUpperCase();
   const keyword = normalizeText(req.query.keyword);
 
   const whereClauses = [];
   const params = [];
 
   const currentUserId = normalizeText(req.user && req.user.userid);
-  if (currentUserId) {
-    whereClauses.push('(owner_userid = ? OR executor_userid = ? OR creator_userid = ?)');
-    params.push(currentUserId, currentUserId, currentUserId);
+  const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
+  const taskScope = resolveTaskQueryScope({
+    currentUserId,
+    globalVerifiers,
+    requestedScope,
+  });
+
+  if (taskScope.restrictToCurrentUser) {
+    if (!currentUserId) {
+      whereClauses.push('1 = 0');
+    } else {
+      whereClauses.push('(owner_userid = ? OR executor_userid = ? OR creator_userid = ?)');
+      params.push(currentUserId, currentUserId, currentUserId);
+    }
   }
 
   if (statusFilter) {
@@ -190,7 +298,6 @@ router.get('/tasks', authenticateToken, async (req, res) => {
       params
     );
 
-    const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
     const taskList = rows.map((row) =>
       mapTaskRowToApi(row, {
         now: new Date(),
@@ -204,6 +311,10 @@ router.get('/tasks', authenticateToken, async (req, res) => {
       userid: req.user && req.user.userid,
       count: taskList.length,
       statusFilter,
+      requestedScope,
+      resolvedScope: taskScope.resolvedScope,
+      restrictToCurrentUser: taskScope.restrictToCurrentUser,
+      userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
       keyword,
     });
 
@@ -229,7 +340,14 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
   try {
     const rows = await allSql(`SELECT * FROM tasks`);
     const currentUserId = normalizeText(req.user && req.user.userid);
-    const scopedRows = currentUserId
+    const requestedScope = normalizeText(req.query.scope).toUpperCase();
+    const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
+    const taskScope = resolveTaskQueryScope({
+      currentUserId,
+      globalVerifiers,
+      requestedScope,
+    });
+    const scopedRows = taskScope.restrictToCurrentUser
       ? rows.filter(
           (item) =>
             normalizeText(item.owner_userid) === currentUserId ||
@@ -242,6 +360,10 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
     logWithTrace(traceId, 'api', 'tasks.kpi.success', {
       userid: req.user && req.user.userid,
       totalTasks: kpi.total_tasks,
+      requestedScope,
+      resolvedScope: taskScope.resolvedScope,
+      restrictToCurrentUser: taskScope.restrictToCurrentUser,
+      userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
     });
 
     res.json({ kpi });
@@ -427,6 +549,25 @@ router.get('/auth/callback', async (req, res) => {
       throw new Error(userDetail.errmsg);
     }
 
+    try {
+      const ensureCalendarResult = await userCalendarService.ensureUserCalendarForUser({
+        userId,
+        userName: userDetail.name,
+        source: 'auth_callback',
+        traceId,
+      });
+
+      logWithTrace(traceId, 'api', 'auth.callback.user_calendar.ensure', {
+        userId,
+        ensureCalendarResult,
+      });
+    } catch (calendarError) {
+      logWithTrace(traceId, 'api', 'auth.callback.user_calendar.ensure_error', {
+        userId,
+        message: calendarError.message,
+      });
+    }
+
     const token = jwt.sign(
       {
         userid: userId,
@@ -465,6 +606,31 @@ router.get('/user/me', authenticateToken, (req, res) => {
   });
 
   res.json(req.user);
+});
+
+router.get('/users', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const departmentId = parsePositiveInteger(req.query && req.query.department_id, 1, Number.MAX_SAFE_INTEGER);
+  const fetchChild = parsePositiveInteger(req.query && req.query.fetch_child, 1, 1);
+  const status = parsePositiveInteger(req.query && req.query.status, 0, Number.MAX_SAFE_INTEGER);
+
+  try {
+    const result = await wecom.listUsersByDepartment(departmentId, fetchChild, status);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'users.list.error', {
+      departmentId,
+      fetchChild,
+      status,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'USER_LIST_ERROR',
+      message: '组织成员获取失败',
+    });
+  }
 });
 
 router.get('/users/:id', authenticateToken, async (req, res) => {
@@ -551,6 +717,424 @@ router.get('/tasks/:id', authenticateToken, async (req, res) => {
     res.status(500).json({
       code: 'TASK_DETAIL_ERROR',
       message: '任务详情获取失败',
+    });
+  }
+});
+
+router.get('/calendar/mappings', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const rows = await allSql(
+      `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at
+       FROM user_calendar_map
+       ORDER BY datetime(updated_at) DESC, user_id ASC`
+    );
+
+    res.json({
+      mappings: rows || [],
+    });
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.mappings.error', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_MAPPINGS_ERROR',
+      message: '获取日历映射失败',
+    });
+  }
+});
+
+router.post('/calendar/ensure', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const userId = normalizeText(req.body && req.body.user_id) || normalizeText(req.user && req.user.userid);
+  const userName = normalizeText(req.body && req.body.user_name) || normalizeText(req.user && req.user.name);
+  const source = normalizeText(req.body && req.body.source) || 'calendar_manage_api';
+
+  if (!userId) {
+    return res.status(400).json({
+      code: 'CALENDAR_ENSURE_USER_ID_REQUIRED',
+      message: 'user_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await userCalendarService.ensureUserCalendarForUser({
+      userId,
+      userName,
+      source,
+      traceId,
+    });
+
+    res.status(result && result.ensured ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.ensure.error', {
+      userId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_ENSURE_ERROR',
+      message: '确保用户日历失败',
+    });
+  }
+});
+
+router.post('/calendar/create', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const payload = {
+      calendar: req.body && req.body.calendar,
+      summary: req.body && req.body.summary,
+      color: req.body && req.body.color,
+      description: req.body && req.body.description,
+      agentid: req.body && req.body.agentid,
+    };
+
+    const createResult = await wecom.createCalendar(payload);
+    if (!createResult || createResult.errcode !== 0) {
+      return res.status(400).json(createResult || {});
+    }
+
+    const bindUserId = normalizeText(req.body && req.body.bind_user_id);
+    const bindUserName = normalizeText(req.body && req.body.bind_user_name);
+    const mappingSource = normalizeText(req.body && req.body.source) || 'calendar_manage_api';
+    let mapping = null;
+
+    if (bindUserId) {
+      const calendarSummary = normalizeText(
+        (req.body && req.body.calendar && req.body.calendar.summary) || bindUserName
+      );
+
+      mapping = await upsertUserCalendarMapping({
+        user_id: bindUserId,
+        cal_id: createResult.cal_id,
+        calendar_summary: calendarSummary,
+        source: mappingSource,
+      });
+    }
+
+    res.status(201).json({
+      ...createResult,
+      mapping,
+    });
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.create.error', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_CREATE_ERROR',
+      message: '创建日历失败',
+    });
+  }
+});
+
+router.post('/calendar/get', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const calIdList = parseIdList(req.body && req.body.cal_id_list);
+
+  if (calIdList.length === 0) {
+    return res.status(400).json({
+      code: 'CALENDAR_ID_LIST_REQUIRED',
+      message: 'cal_id_list 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.getCalendarByIds(calIdList);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.get.error', {
+      calIdList,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_GET_ERROR',
+      message: '获取日历详情失败',
+    });
+  }
+});
+
+router.put('/calendar/:calId', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const calId = normalizeText(req.params.calId);
+
+  if (!calId) {
+    return res.status(400).json({
+      code: 'CALENDAR_ID_REQUIRED',
+      message: 'cal_id 不能为空',
+    });
+  }
+
+  try {
+    const calendarPayload = {
+      ...(req.body && req.body.calendar && typeof req.body.calendar === 'object' ? req.body.calendar : {}),
+      cal_id: calId,
+    };
+    const result = await wecom.updateCalendar(calendarPayload, {
+      skip_public_range: req.body && req.body.skip_public_range,
+    });
+
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.update.error', {
+      calId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_UPDATE_ERROR',
+      message: '更新日历失败',
+    });
+  }
+});
+
+router.delete('/calendar/:calId', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const calId = normalizeText(req.params.calId);
+
+  if (!calId) {
+    return res.status(400).json({
+      code: 'CALENDAR_ID_REQUIRED',
+      message: 'cal_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.deleteCalendar(calId);
+    if (result && result.errcode === 0) {
+      await runSql(`DELETE FROM user_calendar_map WHERE cal_id = ?`, [calId]);
+    }
+
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.delete.error', {
+      calId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_DELETE_ERROR',
+      message: '删除日历失败',
+    });
+  }
+});
+
+router.get('/calendar/:calId/schedules', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const calId = normalizeText(req.params.calId);
+  const offset = parsePositiveInteger(req.query && req.query.offset, 0, Number.MAX_SAFE_INTEGER);
+  const limit = parsePositiveInteger(req.query && req.query.limit, 500, 1000);
+
+  if (!calId) {
+    return res.status(400).json({
+      code: 'CALENDAR_ID_REQUIRED',
+      message: 'cal_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.getScheduleList(calId, offset, limit);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'calendar.schedules.error', {
+      calId,
+      offset,
+      limit,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'CALENDAR_SCHEDULE_LIST_ERROR',
+      message: '获取日程列表失败',
+    });
+  }
+});
+
+router.post('/schedule/create', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const schedule = req.body && req.body.schedule && typeof req.body.schedule === 'object'
+      ? req.body.schedule
+      : req.body || {};
+    const result = await wecom.createSchedule(schedule);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.create.error', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_CREATE_ERROR',
+      message: '创建日程失败',
+    });
+  }
+});
+
+router.post('/schedule/get', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const scheduleIdList = parseIdList(req.body && req.body.schedule_id_list);
+
+  if (scheduleIdList.length === 0) {
+    return res.status(400).json({
+      code: 'SCHEDULE_ID_LIST_REQUIRED',
+      message: 'schedule_id_list 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.getSchedules(scheduleIdList);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.get.error', {
+      scheduleIdList,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_GET_ERROR',
+      message: '获取日程详情失败',
+    });
+  }
+});
+
+router.put('/schedule/:scheduleId', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const scheduleId = normalizeText(req.params.scheduleId);
+
+  if (!scheduleId) {
+    return res.status(400).json({
+      code: 'SCHEDULE_ID_REQUIRED',
+      message: 'schedule_id 不能为空',
+    });
+  }
+
+  try {
+    const schedulePayload = {
+      ...(req.body && req.body.schedule && typeof req.body.schedule === 'object' ? req.body.schedule : {}),
+      schedule_id: scheduleId,
+    };
+    const result = await wecom.updateSchedule(schedulePayload, {
+      skip_attendees: req.body && req.body.skip_attendees,
+      op_mode: req.body && req.body.op_mode,
+      op_start_time: req.body && req.body.op_start_time,
+    });
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.update.error', {
+      scheduleId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_UPDATE_ERROR',
+      message: '更新日程失败',
+    });
+  }
+});
+
+router.delete('/schedule/:scheduleId', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const scheduleId = normalizeText(req.params.scheduleId);
+
+  if (!scheduleId) {
+    return res.status(400).json({
+      code: 'SCHEDULE_ID_REQUIRED',
+      message: 'schedule_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.cancelSchedule(scheduleId, {
+      op_mode: req.body && req.body.op_mode,
+      op_start_time: req.body && req.body.op_start_time,
+    });
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.cancel.error', {
+      scheduleId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_CANCEL_ERROR',
+      message: '取消日程失败',
+    });
+  }
+});
+
+router.post('/schedule/:scheduleId/attendees/add', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const scheduleId = normalizeText(req.params.scheduleId);
+  const attendees = Array.isArray(req.body && req.body.attendees) ? req.body.attendees : [];
+
+  if (!scheduleId) {
+    return res.status(400).json({
+      code: 'SCHEDULE_ID_REQUIRED',
+      message: 'schedule_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.addScheduleAttendees(scheduleId, attendees);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.attendees.add.error', {
+      scheduleId,
+      attendeeCount: attendees.length,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_ATTENDEES_ADD_ERROR',
+      message: '新增日程参与者失败',
+    });
+  }
+});
+
+router.post('/schedule/:scheduleId/attendees/del', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const scheduleId = normalizeText(req.params.scheduleId);
+  const attendees = Array.isArray(req.body && req.body.attendees) ? req.body.attendees : [];
+
+  if (!scheduleId) {
+    return res.status(400).json({
+      code: 'SCHEDULE_ID_REQUIRED',
+      message: 'schedule_id 不能为空',
+    });
+  }
+
+  try {
+    const result = await wecom.removeScheduleAttendees(scheduleId, attendees);
+    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.attendees.remove.error', {
+      scheduleId,
+      attendeeCount: attendees.length,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SCHEDULE_ATTENDEES_REMOVE_ERROR',
+      message: '删除日程参与者失败',
     });
   }
 });
