@@ -56,6 +56,92 @@ const parseCommaList = (rawValue) => {
     .filter(Boolean);
 };
 
+// normalizeTemplateCardButtons
+// 是什么：模板卡片按钮选项标准化函数。
+// 做什么：将 `buttons` 统一转换为 `{ id, text }` 结构并过滤无效项。
+// 为什么：发送企微模板卡片前需要稳定按钮结构，避免字段缺失导致接口拒绝。
+const normalizeTemplateCardButtons = (buttons = []) => {
+  const sourceList = Array.isArray(buttons) ? buttons : [];
+  return sourceList
+    .map((item) => {
+      const button = item && typeof item === 'object' ? item : {};
+      const id = normalizeTextValue(button.id || button.key);
+      const text = normalizeTextValue(button.text || button.name);
+      if (!id || !text) {
+        return null;
+      }
+
+      return {
+        id,
+        text,
+      };
+    })
+    .filter(Boolean);
+};
+
+// normalizeTemplateCardButtonList
+// 是什么：模板卡片直出按钮标准化函数。
+// 做什么：将 `button_list` 统一转换为 `{ text, key, style }` 结构并校正样式值。
+// 为什么：保证透传按钮配置满足企微接口格式，减少运行时兼容分支。
+const normalizeTemplateCardButtonList = (buttonList = []) => {
+  const sourceList = Array.isArray(buttonList) ? buttonList : [];
+  return sourceList
+    .map((item) => {
+      const button = item && typeof item === 'object' ? item : {};
+      const text = normalizeTextValue(button.text || button.name);
+      const key = normalizeTextValue(button.key || button.id);
+      if (!text || !key) {
+        return null;
+      }
+
+      const parsedStyle = Number(button.style);
+      const style = parsedStyle === 2 ? 2 : 1;
+
+      return {
+        text,
+        key,
+        style,
+      };
+    })
+    .filter(Boolean);
+};
+
+// buildTemplateCardActionConfig
+// 是什么：模板卡片动作区配置构建函数。
+// 做什么：根据按钮数量自动选择 `button_selection` 或 `button_list`，并返回统一结构。
+// 为什么：单按钮使用 `button_selection` 在企微侧会触发 `40016 invalid button size`，需按数量分流。
+const buildTemplateCardActionConfig = (config = {}) => {
+  const normalizedButtons = normalizeTemplateCardButtons(config.buttons);
+  const explicitButtonList = normalizeTemplateCardButtonList(config.button_list);
+
+  const buttonSelection =
+    normalizedButtons.length >= 2
+      ? {
+          question_key: 'task_action',
+          title: '请确认任务进度',
+          option_list: normalizedButtons,
+        }
+      : null;
+
+  const fallbackSingleButtonList =
+    normalizedButtons.length === 1
+      ? [
+          {
+            text: normalizedButtons[0].text,
+            key: normalizedButtons[0].id,
+            style: 1,
+          },
+        ]
+      : [];
+
+  const buttonList = explicitButtonList.length > 0 ? explicitButtonList : fallbackSingleButtonList;
+
+  return {
+    buttonSelection,
+    buttonList,
+  };
+};
+
 // sanitizeCreateSchedulePayload
 // 是什么：创建日程请求体清洗函数。
 // 做什么：复制 `schedule` 并移除 `organizer` 字段，返回符合接口规范的请求体。
@@ -824,6 +910,7 @@ class WeComService {
     const traceId = createTraceId();
     const token = await this.getAccessToken();
     const url = `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${token}`;
+    const actionConfig = buildTemplateCardActionConfig(config);
 
     const payload = {
       touser: config.touser,
@@ -847,23 +934,30 @@ class WeComService {
           action_list: [{ text: "查看详情", key: "VIEW_DETAIL" }],
         },
         task_id: config.task_id,
-        button_selection: {
-          question_key: "task_action",
-          title: "请确认任务进度",
-          option_list: config.buttons || [],
-        },
-        button_list: config.button_list || [],
       },
       enable_id_trans: 0,
       enable_duplicate_check: 0,
       duplicate_check_interval: 1800,
     };
 
+    if (actionConfig.buttonSelection) {
+      payload.template_card.button_selection = actionConfig.buttonSelection;
+    }
+
+    if (Array.isArray(actionConfig.buttonList) && actionConfig.buttonList.length > 0) {
+      payload.template_card.button_list = actionConfig.buttonList;
+    }
+
     logWithTrace(traceId, 'wecom-service', 'template_card.send.start', {
       touser: payload.touser,
       taskId: payload.template_card.task_id,
       title: payload.template_card.main_title && payload.template_card.main_title.title,
-      buttonSelectionCount: (payload.template_card.button_selection && payload.template_card.button_selection.option_list && payload.template_card.button_selection.option_list.length) || 0
+      buttonSelectionCount:
+        (payload.template_card.button_selection &&
+          payload.template_card.button_selection.option_list &&
+          payload.template_card.button_selection.option_list.length) ||
+        0,
+      buttonListCount: (payload.template_card.button_list && payload.template_card.button_list.length) || 0,
     });
 
     const response = await this.requestPost(url, payload);
