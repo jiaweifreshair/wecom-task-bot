@@ -128,6 +128,212 @@ const buildDefaultRangeByDayKey = (dayKey: string) => {
   };
 };
 
+// MENTION_TOKEN_REGEX
+// 是什么：`@提及` 词元正则常量。
+// 做什么：从输入文本中提取 `@姓名` / `@姓名(userid)` 片段。
+// 为什么：创建/编辑日程时需要将提及对象转换为内部参与人或外部提醒对象。
+const MENTION_TOKEN_REGEX = /@([^\s@，,。；;]+)/g;
+
+// EXTERNAL_REMINDER_PREFIX
+// 是什么：外部提醒描述前缀常量。
+// 做什么：统一在日程说明中写入外部提醒标记行。
+// 为什么：企业微信日程参与人仅支持内部成员，外部提醒需落在说明文本中。
+const EXTERNAL_REMINDER_PREFIX = '外部提醒：';
+
+// MentionResolvedResult
+// 是什么：`@提及` 解析结果模型。
+// 做什么：承载内部成员、外部提醒对象与原始提及词元集合。
+// 为什么：创建/更新日程时需要同时处理“参与人写入”和“说明补充”两类行为。
+interface MentionResolvedResult {
+  internalUsers: Array<{ userid: string; displayName: string }>;
+  externalNames: string[];
+  rawMentionTokens: string[];
+}
+
+// extractMentionTokens
+// 是什么：提及词元提取函数。
+// 做什么：从输入文本中提取去重后的 `@` 词元并去掉前导 `@`。
+// 为什么：后续需要基于稳定词元做内部成员匹配与外部提醒归类。
+const extractMentionTokens = (value: string) => {
+  const normalizedText = String(value || '').trim();
+  if (!normalizedText) {
+    return [] as string[];
+  }
+
+  const tokenSet = new Set<string>();
+  for (const matched of normalizedText.matchAll(MENTION_TOKEN_REGEX)) {
+    const rawToken = String((matched && matched[1]) || '').trim();
+    if (rawToken) {
+      tokenSet.add(rawToken);
+    }
+  }
+  return Array.from(tokenSet);
+};
+
+// resolveMentionKeyword
+// 是什么：当前输入提及关键字解析函数。
+// 做什么：解析输入末尾尚未完成的 `@关键词` 片段。
+// 为什么：用于动态过滤内部成员候选，实现“输入 @ 即可选择”的交互。
+const resolveMentionKeyword = (value: string) => {
+  const normalizedText = String(value || '');
+  const matched = normalizedText.match(/(?:^|[\s，,])@([^\s@，,。；;()]*)$/);
+  return String((matched && matched[1]) || '').trim();
+};
+
+// buildMentionCandidates
+// 是什么：内部成员提及候选构建函数。
+// 做什么：按关键词过滤并返回最多 8 位可插入的组织成员。
+// 为什么：降低手工输入 user_id 的门槛，支持在日程表单快速选择内部提醒人。
+const buildMentionCandidates = (users: OrgUserProfile[], keyword: string) => {
+  const normalizedKeyword = String(keyword || '').trim().toLowerCase();
+  if (!normalizedKeyword) {
+    return users.slice(0, 8);
+  }
+
+  return users
+    .filter((item) => {
+      const userId = String(item.userid || '').toLowerCase();
+      const name = String(item.name || '').toLowerCase();
+      return userId.includes(normalizedKeyword) || name.includes(normalizedKeyword);
+    })
+    .slice(0, 8);
+};
+
+// appendMentionToken
+// 是什么：提及词元追加函数。
+// 做什么：将 `@词元` 以去重方式追加到输入文本末尾。
+// 为什么：点击候选成员后需快速补全提及文本，避免重复插入。
+const appendMentionToken = (text: string, token: string) => {
+  const normalizedToken = String(token || '')
+    .trim()
+    .replace(/^@+/, '');
+  if (!normalizedToken) {
+    return text;
+  }
+
+  const exists = extractMentionTokens(text).some(
+    (item) => item.toLowerCase() === normalizedToken.toLowerCase()
+  );
+  if (exists) {
+    return text;
+  }
+
+  const trimmedEnd = String(text || '').trimEnd();
+  return `${trimmedEnd ? `${trimmedEnd} ` : ''}@${normalizedToken} `;
+};
+
+// resolveMentionTargets
+// 是什么：提及对象归一化函数。
+// 做什么：将 `@词元` 解析为内部成员与外部提醒对象两类结果。
+// 为什么：内部成员需写入 `attendees`，外部对象需落库到说明文本实现提醒留痕。
+const resolveMentionTargets = (value: string, users: OrgUserProfile[]): MentionResolvedResult => {
+  const tokens = extractMentionTokens(value);
+  const internalMap = new Map<string, { userid: string; displayName: string }>();
+  const externalSet = new Set<string>();
+
+  const usersByUserId = new Map<string, OrgUserProfile>();
+  const usersByName = new Map<string, OrgUserProfile[]>();
+  users.forEach((item) => {
+    const userId = String(item.userid || '').trim();
+    const name = String(item.name || '').trim();
+    if (userId) {
+      usersByUserId.set(userId.toLowerCase(), item);
+    }
+    if (name) {
+      const key = name.toLowerCase();
+      const existed = usersByName.get(key) || [];
+      usersByName.set(key, [...existed, item]);
+    }
+  });
+
+  tokens.forEach((token) => {
+    const normalizedToken = String(token || '').trim();
+    if (!normalizedToken) {
+      return;
+    }
+
+    const bracketMatched = normalizedToken.match(/^(.+)\(([^()]+)\)$/);
+    if (bracketMatched) {
+      const displayName = String(bracketMatched[1] || '').trim();
+      const bracketUserId = String(bracketMatched[2] || '').trim();
+      const matchedUser = usersByUserId.get(bracketUserId.toLowerCase());
+      if (matchedUser) {
+        const userId = String(matchedUser.userid || '').trim();
+        if (userId) {
+          internalMap.set(userId, {
+            userid: userId,
+            displayName: String(matchedUser.name || userId).trim() || userId,
+          });
+          return;
+        }
+      }
+      if (bracketUserId) {
+        internalMap.set(bracketUserId, {
+          userid: bracketUserId,
+          displayName: displayName || bracketUserId,
+        });
+        return;
+      }
+      externalSet.add(displayName || normalizedToken);
+      return;
+    }
+
+    const byUserId = usersByUserId.get(normalizedToken.toLowerCase());
+    if (byUserId) {
+      const userId = String(byUserId.userid || '').trim();
+      if (userId) {
+        internalMap.set(userId, {
+          userid: userId,
+          displayName: String(byUserId.name || userId).trim() || userId,
+        });
+        return;
+      }
+    }
+
+    const byNameList = usersByName.get(normalizedToken.toLowerCase()) || [];
+    if (byNameList.length === 1) {
+      const matchedUser = byNameList[0];
+      const userId = String(matchedUser.userid || '').trim();
+      if (userId) {
+        internalMap.set(userId, {
+          userid: userId,
+          displayName: String(matchedUser.name || userId).trim() || userId,
+        });
+        return;
+      }
+    }
+
+    externalSet.add(normalizedToken);
+  });
+
+  return {
+    internalUsers: Array.from(internalMap.values()),
+    externalNames: Array.from(externalSet),
+    rawMentionTokens: tokens,
+  };
+};
+
+// composeDescriptionWithExternalMentions
+// 是什么：说明文本与外部提醒合成函数。
+// 做什么：移除旧的外部提醒行并追加最新 `外部提醒：@...` 标记。
+// 为什么：避免重复堆叠提醒文本，确保更新日程时描述内容始终可读且幂等。
+const composeDescriptionWithExternalMentions = (description: string, externalNames: string[]) => {
+  const rawLines = String(description || '')
+    .split('\n')
+    .map((line) => line.trimEnd());
+  const keptLines = rawLines.filter(
+    (line) => !String(line || '').trim().startsWith(EXTERNAL_REMINDER_PREFIX)
+  );
+  const cleanedDescription = keptLines.join('\n').trim();
+
+  if (!externalNames.length) {
+    return cleanedDescription;
+  }
+
+  const reminderLine = `${EXTERNAL_REMINDER_PREFIX}${externalNames.map((item) => `@${item}`).join(' ')}`;
+  return cleanedDescription ? `${cleanedDescription}\n\n${reminderLine}` : reminderLine;
+};
+
 // toRecord
 // 是什么：弱类型对象归一化函数。
 // 做什么：将未知输入安全转换为键值对象。
@@ -419,6 +625,16 @@ const CalendarManager: React.FC = () => {
   const [orgUsersErrorHint, setOrgUsersErrorHint] = useState('');
   const [attendeeKeyword, setAttendeeKeyword] = useState('');
   const [selectedAttendeeUserIds, setSelectedAttendeeUserIds] = useState<string[]>([]);
+  // scheduleComposerMentions
+  // 是什么：创建日程提及输入状态。
+  // 做什么：保存用户在创建区输入的 `@姓名` / `@姓名(userid)` 文本。
+  // 为什么：创建时需直接带出参与人提醒，避免再切到“参与人”菜单补操作。
+  const [scheduleComposerMentions, setScheduleComposerMentions] = useState('');
+  // scheduleEditorMentions
+  // 是什么：编辑日程提及输入状态。
+  // 做什么：保存用户在编辑区输入的提及对象文本。
+  // 为什么：支持更新日程时同步维护提醒对象，减少重复录入。
+  const [scheduleEditorMentions, setScheduleEditorMentions] = useState('');
 
   const initialMonth = useMemo(() => {
     const now = new Date();
@@ -556,6 +772,72 @@ const CalendarManager: React.FC = () => {
     });
   }, [orgUsers, attendeeKeyword]);
 
+  // composerMentionResult
+  // 是什么：创建日程提及解析结果。
+  // 做什么：将创建区提及文本转换为内部成员与外部提醒对象。
+  // 为什么：创建提交前需要直接组装 `attendees` 与说明文案。
+  const composerMentionResult = useMemo(
+    () => resolveMentionTargets(scheduleComposerMentions, orgUsers),
+    [scheduleComposerMentions, orgUsers]
+  );
+
+  // editorMentionResult
+  // 是什么：编辑日程提及解析结果。
+  // 做什么：将编辑区提及文本转换为内部成员与外部提醒对象。
+  // 为什么：更新时需要有条件覆盖参与人并写入外部提醒。
+  const editorMentionResult = useMemo(
+    () => resolveMentionTargets(scheduleEditorMentions, orgUsers),
+    [scheduleEditorMentions, orgUsers]
+  );
+
+  // composerMentionCandidates
+  // 是什么：创建区提及候选成员列表。
+  // 做什么：基于输入末尾 `@关键词` 过滤组织成员候选。
+  // 为什么：提供“输入 @ 即可点选内部成员”的快速交互。
+  const composerMentionCandidates = useMemo(() => {
+    const keyword = resolveMentionKeyword(scheduleComposerMentions);
+    return keyword || String(scheduleComposerMentions || '').includes('@')
+      ? buildMentionCandidates(orgUsers, keyword)
+      : [];
+  }, [orgUsers, scheduleComposerMentions]);
+
+  // editorMentionCandidates
+  // 是什么：编辑区提及候选成员列表。
+  // 做什么：基于输入末尾 `@关键词` 过滤组织成员候选。
+  // 为什么：保证编辑流程和创建流程的提及体验一致。
+  const editorMentionCandidates = useMemo(() => {
+    const keyword = resolveMentionKeyword(scheduleEditorMentions);
+    return keyword || String(scheduleEditorMentions || '').includes('@')
+      ? buildMentionCandidates(orgUsers, keyword)
+      : [];
+  }, [orgUsers, scheduleEditorMentions]);
+
+  // appendComposerMentionUser
+  // 是什么：创建区成员提及追加函数。
+  // 做什么：点击候选成员后向创建区输入框追加标准化提及词元。
+  // 为什么：减少手工输入错误并提升内部成员匹配准确率。
+  const appendComposerMentionUser = useCallback((member: OrgUserProfile) => {
+    const userId = String(member.userid || '').trim();
+    if (!userId) {
+      return;
+    }
+    const displayName = String(member.name || userId).trim() || userId;
+    setScheduleComposerMentions((prev) => appendMentionToken(prev, `${displayName}(${userId})`));
+  }, []);
+
+  // appendEditorMentionUser
+  // 是什么：编辑区成员提及追加函数。
+  // 做什么：点击候选成员后向编辑区输入框追加标准化提及词元。
+  // 为什么：统一编辑态的内部成员点选行为，避免手工维护参与人时误填。
+  const appendEditorMentionUser = useCallback((member: OrgUserProfile) => {
+    const userId = String(member.userid || '').trim();
+    if (!userId) {
+      return;
+    }
+    const displayName = String(member.name || userId).trim() || userId;
+    setScheduleEditorMentions((prev) => appendMentionToken(prev, `${displayName}(${userId})`));
+  }, []);
+
   // pushOperation
   // 是什么：操作反馈写入函数。
   // 做什么：将操作结果写入“最新反馈”与“历史记录”。
@@ -676,6 +958,7 @@ const CalendarManager: React.FC = () => {
 
   useEffect(() => {
     if (!selectedEvent) {
+      setScheduleEditorMentions('');
       return;
     }
     setScheduleEditor({
@@ -685,6 +968,7 @@ const CalendarManager: React.FC = () => {
       startAt: fromUnixSecondsToDatetimeLocal(selectedEvent.startTime),
       endAt: fromUnixSecondsToDatetimeLocal(selectedEvent.endTime),
     });
+    setScheduleEditorMentions('');
   }, [selectedEvent]);
 
   useEffect(() => {
@@ -831,6 +1115,20 @@ const CalendarManager: React.FC = () => {
       return;
     }
 
+    const hasComposerMentionInput = String(scheduleComposerMentions || '').trim().length > 0;
+    if (hasComposerMentionInput && composerMentionResult.rawMentionTokens.length === 0) {
+      pushOperation('创建日程', 'error', '提醒对象请输入 @姓名 或 @姓名(userid) 格式。');
+      return;
+    }
+
+    const composerInternalAttendees = composerMentionResult.internalUsers.map((item) => ({
+      userid: item.userid,
+    }));
+    const composerDescription = composeDescriptionWithExternalMentions(
+      scheduleComposer.description,
+      composerMentionResult.externalNames
+    );
+
     let eventSnapshot = events;
     try {
       eventSnapshot = await buildLatestEventSnapshotByCalId(activeCalId);
@@ -856,15 +1154,20 @@ const CalendarManager: React.FC = () => {
     await withLoading(
       '创建日程',
       async () => {
+        const schedulePayload: Record<string, unknown> = {
+          cal_id: activeCalId,
+          summary: scheduleComposer.summary.trim(),
+          description: composerDescription,
+          location: scheduleComposer.location.trim(),
+          start_time: startTime,
+          end_time: endTime,
+        };
+        if (composerInternalAttendees.length > 0) {
+          schedulePayload.attendees = composerInternalAttendees;
+        }
+
         const result = await createSchedule({
-          schedule: {
-            cal_id: activeCalId,
-            summary: scheduleComposer.summary.trim(),
-            description: scheduleComposer.description.trim(),
-            location: scheduleComposer.location.trim(),
-            start_time: startTime,
-            end_time: endTime,
-          },
+          schedule: schedulePayload,
         });
 
         const scheduleId = String((result as WecomApiResult).schedule_id || '').trim();
@@ -875,11 +1178,11 @@ const CalendarManager: React.FC = () => {
                 id: scheduleId,
                 calId: activeCalId,
                 summary: scheduleComposer.summary.trim(),
-                description: scheduleComposer.description.trim(),
+                description: composerDescription,
                 location: scheduleComposer.location.trim(),
                 startTime,
                 endTime,
-                attendeesCount: 0,
+                attendeesCount: composerInternalAttendees.length,
                 source: 'local_create',
               },
             ])
@@ -890,7 +1193,9 @@ const CalendarManager: React.FC = () => {
         }
         return result;
       },
-      '日程已创建并加入月历。'
+      `日程已创建并加入月历。${
+        composerInternalAttendees.length > 0 ? ` 已提醒 ${composerInternalAttendees.length} 位内部成员。` : ''
+      }${composerMentionResult.externalNames.length > 0 ? ` 已记录 ${composerMentionResult.externalNames.length} 位外部提醒对象。` : ''}`
     );
   };
 
@@ -914,6 +1219,22 @@ const CalendarManager: React.FC = () => {
       pushOperation('更新日程', 'error', '请检查开始/结束时间，结束时间需晚于开始时间。');
       return;
     }
+
+    const hasEditorMentionInput = String(scheduleEditorMentions || '').trim().length > 0;
+    if (hasEditorMentionInput && editorMentionResult.rawMentionTokens.length === 0) {
+      pushOperation('更新日程', 'error', '提醒对象请输入 @姓名 或 @姓名(userid) 格式。');
+      return;
+    }
+
+    const editorInternalAttendees = editorMentionResult.internalUsers.map((item) => ({
+      userid: item.userid,
+    }));
+    const shouldUpdateAttendeesByMention =
+      editorMentionResult.rawMentionTokens.length > 0 && editorInternalAttendees.length > 0;
+    const editorDescription = composeDescriptionWithExternalMentions(
+      scheduleEditor.description,
+      editorMentionResult.externalNames
+    );
 
     let eventSnapshot = events;
     try {
@@ -941,14 +1262,20 @@ const CalendarManager: React.FC = () => {
     await withLoading(
       '更新日程',
       async () => {
+        const schedulePayload: Record<string, unknown> = {
+          summary: scheduleEditor.summary.trim(),
+          description: editorDescription,
+          location: scheduleEditor.location.trim(),
+          start_time: startTime,
+          end_time: endTime,
+        };
+        if (shouldUpdateAttendeesByMention) {
+          schedulePayload.attendees = editorInternalAttendees;
+        }
+
         const result = await updateSchedule(selectedEvent.id, {
-          schedule: {
-            summary: scheduleEditor.summary.trim(),
-            description: scheduleEditor.description.trim(),
-            location: scheduleEditor.location.trim(),
-            start_time: startTime,
-            end_time: endTime,
-          },
+          schedule: schedulePayload,
+          skip_attendees: shouldUpdateAttendeesByMention ? 0 : 1,
         });
 
         setEvents((prev) =>
@@ -957,10 +1284,13 @@ const CalendarManager: React.FC = () => {
               ? {
                   ...item,
                   summary: scheduleEditor.summary.trim(),
-                  description: scheduleEditor.description.trim(),
+                  description: editorDescription,
                   location: scheduleEditor.location.trim(),
                   startTime,
                   endTime,
+                  attendeesCount: shouldUpdateAttendeesByMention
+                    ? editorInternalAttendees.length
+                    : item.attendeesCount,
                   source: 'local_update',
                 }
               : item
@@ -969,7 +1299,9 @@ const CalendarManager: React.FC = () => {
         setSelectedDayKey(toDateKey(new Date(startTime * 1000)));
         return result;
       },
-      '选中日程已更新。'
+      `选中日程已更新。${
+        shouldUpdateAttendeesByMention ? ` 已更新 ${editorInternalAttendees.length} 位内部提醒成员。` : ''
+      }${editorMentionResult.externalNames.length > 0 ? ` 已记录 ${editorMentionResult.externalNames.length} 位外部提醒对象。` : ''}`
     );
   };
 
@@ -1483,6 +1815,44 @@ const CalendarManager: React.FC = () => {
                   placeholder="地点（可选）"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
+                <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
+                  <p className="text-[11px] font-semibold text-slate-700">提醒对象（@提及）</p>
+                  <input
+                    value={scheduleComposerMentions}
+                    onChange={(event) => setScheduleComposerMentions(event.target.value)}
+                    placeholder="@张三(zhangsan) @客户王总"
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    内部提醒 {composerMentionResult.internalUsers.length} 人，外部提醒{' '}
+                    {composerMentionResult.externalNames.length} 人
+                  </p>
+                  {composerMentionCandidates.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {composerMentionCandidates.map((member) => {
+                        const userId = String(member.userid || '').trim();
+                        if (!userId) {
+                          return null;
+                        }
+                        const name = String(member.name || userId).trim() || userId;
+                        return (
+                          <button
+                            key={`composer-mention-${userId}`}
+                            onClick={() => appendComposerMentionUser(member)}
+                            className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 transition hover:bg-blue-100"
+                            type="button"
+                            disabled={loading}
+                          >
+                            @{name}({userId})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  <p className="text-[10px] text-slate-400">
+                    输入 @ 后可点选内部成员；无通讯录权限时可手输 @姓名(userid) 指定内部提醒；未匹配内部账号的 @姓名 将按外部提醒写入日程说明。
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="datetime-local"
@@ -1531,6 +1901,45 @@ const CalendarManager: React.FC = () => {
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   disabled={!selectedEvent}
                 />
+                <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
+                  <p className="text-[11px] font-semibold text-slate-700">提醒对象（@提及）</p>
+                  <input
+                    value={scheduleEditorMentions}
+                    onChange={(event) => setScheduleEditorMentions(event.target.value)}
+                    placeholder="@张三(zhangsan) @客户王总"
+                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
+                    disabled={!selectedEvent}
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    内部提醒 {editorMentionResult.internalUsers.length} 人，外部提醒{' '}
+                    {editorMentionResult.externalNames.length} 人
+                  </p>
+                  {editorMentionCandidates.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {editorMentionCandidates.map((member) => {
+                        const userId = String(member.userid || '').trim();
+                        if (!userId) {
+                          return null;
+                        }
+                        const name = String(member.name || userId).trim() || userId;
+                        return (
+                          <button
+                            key={`editor-mention-${userId}`}
+                            onClick={() => appendEditorMentionUser(member)}
+                            className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                            type="button"
+                            disabled={loading || !selectedEvent}
+                          >
+                            @{name}({userId})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  <p className="text-[10px] text-slate-400">
+                    编辑时填写 @成员 可同步更新内部提醒；无通讯录权限时可手输 @姓名(userid)；@外部姓名 会记录到日程说明中。
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="datetime-local"
