@@ -312,3 +312,67 @@ test('listUsersByDepartment 在 contact 返回 60020 时应回退 default secret
     wecom.corpSecret = originalCorpSecret;
   }
 });
+
+test('listUsersByDepartment 在 contact 返回 48009 时应回退 default secret', async () => {
+  const getCalls = [];
+  const tokenCalls = [];
+  const originalContactSecret = wecom.contactSecret;
+  const originalCorpSecret = wecom.corpSecret;
+  wecom.contactSecret = 'contact-secret-for-test';
+  wecom.corpSecret = 'default-secret-for-test';
+
+  try {
+    await withStub(
+      wecom,
+      'getAccessToken',
+      async (options = {}) => {
+        tokenCalls.push(options);
+        if (options.cacheKey === 'contact') {
+          return 'contact_token';
+        }
+        return 'default_token';
+      },
+      async () => {
+        await withStub(
+          axios,
+          'get',
+          async (url) => {
+            getCalls.push({ url });
+            if (url.includes('access_token=contact_token')) {
+              return {
+                data: {
+                  errcode: 48009,
+                  errmsg: 'api forbidden for contact assistant',
+                  userlist: [],
+                },
+              };
+            }
+
+            return {
+              data: {
+                errcode: 0,
+                errmsg: 'ok',
+                userlist: [{ userid: 'JiaWei', name: '贾伟' }],
+              },
+            };
+          },
+          async () => {
+            const result = await wecom.listUsersByDepartment(1, 1, 0);
+            assert.equal(tokenCalls.length, 2);
+            assert.equal(tokenCalls[0].cacheKey, 'contact');
+            assert.equal(tokenCalls[1].cacheKey, 'default');
+            assert.equal(getCalls.length, 2);
+            assert.equal(getCalls[0].url.includes('access_token=contact_token'), true);
+            assert.equal(getCalls[1].url.includes('access_token=default_token'), true);
+            assert.equal(result.errcode, 0);
+            assert.equal(Array.isArray(result.userlist), true);
+            assert.equal(result.userlist.length, 1);
+          }
+        );
+      }
+    );
+  } finally {
+    wecom.contactSecret = originalContactSecret;
+    wecom.corpSecret = originalCorpSecret;
+  }
+});

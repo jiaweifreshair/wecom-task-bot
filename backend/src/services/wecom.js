@@ -38,7 +38,7 @@ const DEFAULT_WECOM_HTTP_TIMEOUT_MS = 15000;
 // 是什么：组织成员查询可回退错误码集合。
 // 做什么：定义在 `user/list` 响应这些错误码时允许切换到下一套 Secret 重试。
 // 为什么：通讯录 Secret 与应用 Secret 的权限或可信 IP 可能配置不一致，需要容错回退保障可用性。
-const USER_LIST_RETRY_ERRCODES = new Set([60011, 60020]);
+const USER_LIST_RETRY_ERRCODES = new Set([60011, 60020, 48009]);
 
 // OA_API_RETRY_ERRCODES
 // 是什么：OA 接口可重试错误码集合。
