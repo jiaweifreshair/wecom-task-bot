@@ -616,7 +616,11 @@ router.get('/users', authenticateToken, async (req, res) => {
 
   try {
     const result = await wecom.listUsersByDepartment(departmentId, fetchChild, status);
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    // usersListGatewayStatus
+    // 是什么：组织成员网关 HTTP 状态策略。
+    // 做什么：统一返回 200，并通过 `errcode/errmsg` 让前端感知权限或 IP 受限状态。
+    // 为什么：成员接口常见受限返回（如 60011/60020/48009）属于可预期业务态，不应触发浏览器资源加载错误。
+    res.status(200).json(result || {});
   } catch (error) {
     logWithTrace(traceId, 'api', 'users.list.error', {
       departmentId,

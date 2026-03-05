@@ -884,6 +884,24 @@ const CalendarManager: React.FC = () => {
         fetch_child: 1,
         status: 0,
       });
+      const errcode = Number(result && result.errcode);
+
+      // orgUsersDegradeMode
+      // 是什么：组织成员查询降级处理分支。
+      // 做什么：当后端返回业务错误码（如权限或可信 IP 受限）时，不抛异常，改为提示并保留页面可用。
+      // 为什么：该场景属于可预期配置问题，页面应继续允许手工 `@姓名(userid)` 提及，不应中断核心日程流程。
+      if (Number.isFinite(errcode) && errcode !== 0) {
+        const message = resolveErrorMessage({
+          response: {
+            data: result,
+          },
+        });
+        setOrgUsers([]);
+        setOrgUsersErrorHint(message);
+        pushOperation('加载组织成员', 'error', message);
+        return result;
+      }
+
       const rows = Array.isArray(result.userlist) ? result.userlist : [];
       const deduped = new Map<string, OrgUserProfile>();
 
