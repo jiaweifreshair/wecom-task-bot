@@ -361,6 +361,42 @@ const mergeBoardEvents = (currentEvents: CalendarBoardEvent[], incomingEvents: C
   return Array.from(merged.values()).sort((a, b) => a.startTime - b.startTime);
 };
 
+// findConflictingEvent
+// 是什么：时间冲突检测函数。
+// 做什么：在同一日历事件集合内检测与目标时间段重叠的首个事件。
+// 为什么：创建/编辑日程前需阻止时间冲突，避免同一用户日历重复占用时段。
+const findConflictingEvent = (
+  events: CalendarBoardEvent[],
+  options: { calId: string; startTime: number; endTime: number; excludeEventId?: string }
+) => {
+  const targetCalId = String(options.calId || '').trim();
+  const targetStartTime = Number(options.startTime || 0);
+  const targetEndTime = Number(options.endTime || 0);
+  const excludeEventId = String(options.excludeEventId || '').trim();
+
+  if (!targetCalId || !targetStartTime || !targetEndTime || targetEndTime <= targetStartTime) {
+    return null;
+  }
+
+  return (
+    events.find((event) => {
+      if (excludeEventId && event.id === excludeEventId) {
+        return false;
+      }
+      if (String(event.calId || '').trim() !== targetCalId) {
+        return false;
+      }
+
+      // overlap
+      // 是什么：时间区间重叠判定。
+      // 做什么：采用 `[start,end)` 规则判断两个区间是否交叠。
+      // 为什么：避免相邻边界被误判冲突，同时兼容日程分钟级编辑。
+      const overlap = targetStartTime < event.endTime && event.startTime < targetEndTime;
+      return overlap;
+    }) || null
+  );
+};
+
 const CalendarManager: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -433,6 +469,13 @@ const CalendarManager: React.FC = () => {
       ''
   ).trim();
   const currentUserName = String(user?.name || '').trim();
+  // canManageCalendar
+  // 是什么：日历维护能力开关。
+  // 做什么：仅当角色为 `MANAGER` 时显示“日历维护/映射”模块。
+  // 为什么：普通执行人只需关注日程执行，不应暴露日历绑定与维护细节。
+  const canManageCalendar = String(user?.role || '')
+    .trim()
+    .toUpperCase() === 'MANAGER';
 
   const currentUserMapping = useMemo(() => {
     if (!resolvedCurrentUserId) {
@@ -471,6 +514,20 @@ const CalendarManager: React.FC = () => {
   const selectedEvent = useMemo(() => {
     return events.find((item) => item.id === selectedEventId) || null;
   }, [events, selectedEventId]);
+
+  const scheduleTabs = useMemo(() => {
+    const baseTabs: Array<{ key: ActionPanelTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+      { key: 'SCHEDULE', label: '日程', icon: CalendarClock },
+      { key: 'ATTENDEE', label: '参与人', icon: UserRoundPlus },
+      { key: 'RESULT', label: '结果', icon: Sparkles },
+    ];
+
+    if (canManageCalendar) {
+      return [{ key: 'CALENDAR', label: '日历', icon: CalendarDays }, ...baseTabs];
+    }
+
+    return baseTabs;
+  }, [canManageCalendar]);
 
   const monthlyVisibleCount = useMemo(() => {
     const currentYear = viewMonth.getFullYear();
@@ -630,6 +687,12 @@ const CalendarManager: React.FC = () => {
     });
   }, [selectedEvent]);
 
+  useEffect(() => {
+    if (!canManageCalendar && actionTab === 'CALENDAR') {
+      setActionTab('SCHEDULE');
+    }
+  }, [actionTab, canManageCalendar]);
+
   // createMyCalendar
   // 是什么：个人日历创建并绑定函数。
   // 做什么：按当前登录用户自动绑定创建结果。
@@ -724,6 +787,29 @@ const CalendarManager: React.FC = () => {
     );
   };
 
+  // buildLatestEventSnapshotByCalId
+  // 是什么：指定日历最新事件快照构建函数。
+  // 做什么：拉取远端最新日程并与本地事件合并，返回合并后的快照。
+  // 为什么：创建/更新前需基于最新数据做冲突校验，避免仅凭本地缓存误判。
+  const buildLatestEventSnapshotByCalId = useCallback(
+    async (calId: string) => {
+      const normalizedCalId = String(calId || '').trim();
+      if (!normalizedCalId) {
+        return events;
+      }
+
+      const result = await getCalendarSchedules(normalizedCalId, {
+        offset: 0,
+        limit: 500,
+      });
+      const incomingEvents = mapResultToBoardEvents(result, normalizedCalId, 'api_prefetch');
+      const merged = mergeBoardEvents(events, incomingEvents);
+      setEvents(merged);
+      return merged;
+    },
+    [events]
+  );
+
   // createMySchedule
   // 是什么：创建日程函数。
   // 做什么：在当前绑定日历创建日程并回写到月视图。
@@ -742,6 +828,28 @@ const CalendarManager: React.FC = () => {
     const endTime = toUnixSeconds(scheduleComposer.endAt);
     if (!startTime || !endTime || endTime <= startTime) {
       pushOperation('创建日程', 'error', '请检查开始/结束时间，结束时间需晚于开始时间。');
+      return;
+    }
+
+    let eventSnapshot = events;
+    try {
+      eventSnapshot = await buildLatestEventSnapshotByCalId(activeCalId);
+    } catch (error) {
+      pushOperation('创建日程', 'error', '拉取最新日程失败，无法完成冲突校验，请稍后重试。');
+      return;
+    }
+
+    const conflictingEvent = findConflictingEvent(eventSnapshot, {
+      calId: activeCalId,
+      startTime,
+      endTime,
+    });
+    if (conflictingEvent) {
+      pushOperation(
+        '创建日程',
+        'error',
+        `与现有日程“${conflictingEvent.summary}”时间冲突，请调整时间后再提交。`
+      );
       return;
     }
 
@@ -804,6 +912,29 @@ const CalendarManager: React.FC = () => {
     const endTime = toUnixSeconds(scheduleEditor.endAt);
     if (!startTime || !endTime || endTime <= startTime) {
       pushOperation('更新日程', 'error', '请检查开始/结束时间，结束时间需晚于开始时间。');
+      return;
+    }
+
+    let eventSnapshot = events;
+    try {
+      eventSnapshot = await buildLatestEventSnapshotByCalId(selectedEvent.calId);
+    } catch (error) {
+      pushOperation('更新日程', 'error', '拉取最新日程失败，无法完成冲突校验，请稍后重试。');
+      return;
+    }
+
+    const conflictingEvent = findConflictingEvent(eventSnapshot, {
+      calId: selectedEvent.calId,
+      startTime,
+      endTime,
+      excludeEventId: selectedEvent.id,
+    });
+    if (conflictingEvent) {
+      pushOperation(
+        '更新日程',
+        'error',
+        `与现有日程“${conflictingEvent.summary}”时间冲突，请调整时间后再提交。`
+      );
       return;
     }
 
@@ -1060,27 +1191,29 @@ const CalendarManager: React.FC = () => {
             </div>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">我的日历映射</h2>
-              <span className="text-xs text-slate-400">{currentUserMapping ? 1 : 0} 条</span>
-            </div>
-            <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
-              {!currentUserMapping ? (
-                <p className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-400">
-                  还没有可用日历，请在右侧“日历”模块先创建新日历。
-                </p>
-              ) : (
-                <div className="w-full rounded-lg border border-blue-300 bg-blue-50/60 p-3 text-left">
-                  <p className="text-xs font-semibold text-slate-700">
-                    {currentUserMapping.calendar_summary || '我的默认工作日历'}
+          {canManageCalendar ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-900">我的日历映射</h2>
+                <span className="text-xs text-slate-400">{currentUserMapping ? 1 : 0} 条</span>
+              </div>
+              <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
+                {!currentUserMapping ? (
+                  <p className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-400">
+                    还没有可用日历，请在右侧“日历”模块先创建新日历。
                   </p>
-                  <p className="mt-1 text-[11px] text-slate-500">当前登录账号绑定（只读）</p>
-                  <p className="mt-1 text-[10px] text-slate-400">{currentUserMapping.updated_at || '-'}</p>
-                </div>
-              )}
-            </div>
-          </section>
+                ) : (
+                  <div className="w-full rounded-lg border border-blue-300 bg-blue-50/60 p-3 text-left">
+                    <p className="text-xs font-semibold text-slate-700">
+                      {currentUserMapping.calendar_summary || '我的默认工作日历'}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">当前登录账号绑定（只读）</p>
+                    <p className="mt-1 text-[10px] text-slate-400">{currentUserMapping.updated_at || '-'}</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : null}
         </aside>
 
         <section className="space-y-5">
@@ -1202,7 +1335,7 @@ const CalendarManager: React.FC = () => {
 
             {selectedDayEvents.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
-                当前日期暂无事件。你可以在右侧“日程”中创建，或在“日历”中刷新我的日程。
+                当前日期暂无事件。你可以在右侧“日程”中创建，或点击“刷新状态”同步最新日程。
               </div>
             ) : (
               <div className="space-y-3">
@@ -1244,19 +1377,14 @@ const CalendarManager: React.FC = () => {
 
         <aside className="space-y-5">
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { key: 'CALENDAR', label: '日历', icon: CalendarDays },
-                { key: 'SCHEDULE', label: '日程', icon: CalendarClock },
-                { key: 'ATTENDEE', label: '参与人', icon: UserRoundPlus },
-                { key: 'RESULT', label: '结果', icon: Sparkles },
-              ].map((tab) => {
+            <div className={`grid gap-2 ${canManageCalendar ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              {scheduleTabs.map((tab) => {
                 const Icon = tab.icon;
-                const isActive = actionTab === (tab.key as ActionPanelTab);
+                const isActive = actionTab === tab.key;
                 return (
                   <button
                     key={tab.key}
-                    onClick={() => setActionTab(tab.key as ActionPanelTab)}
+                    onClick={() => setActionTab(tab.key)}
                     className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-xs transition ${
                       isActive ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'
                     }`}
@@ -1269,7 +1397,7 @@ const CalendarManager: React.FC = () => {
             </div>
           </div>
 
-          {actionTab === 'CALENDAR' ? (
+          {canManageCalendar && actionTab === 'CALENDAR' ? (
             <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-900">我的日历维护</h2>
               <p className="text-xs text-slate-500">
@@ -1325,6 +1453,13 @@ const CalendarManager: React.FC = () => {
           {actionTab === 'SCHEDULE' ? (
             <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-900">日程创建与编辑</h2>
+              <button
+                onClick={refreshMySchedules}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                disabled={loading}
+              >
+                刷新我的日程
+              </button>
 
               <div className="space-y-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
                 <p className="text-xs font-semibold text-slate-700">创建新日程</p>
