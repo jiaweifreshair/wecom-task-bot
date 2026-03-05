@@ -55,6 +55,77 @@ test('createSchedule 应忽略 organizer 字段，避免触发接口权限拒绝
   });
 });
 
+test('createSchedule 在 48009 时应自动切换备用 Secret 重试', async () => {
+  const postCalls = [];
+  const tokenCalls = [];
+  const originalCorpSecret = wecom.corpSecret;
+  const originalContactSecret = wecom.contactSecret;
+  const originalOaSecret = wecom.oaSecret;
+
+  wecom.corpSecret = 'default-secret-for-test';
+  wecom.contactSecret = '';
+  wecom.oaSecret = 'oa-secret-for-test';
+
+  try {
+    await withStub(
+      wecom,
+      'getAccessToken',
+      async (options = {}) => {
+        tokenCalls.push(options);
+        if (options.cacheKey === 'oa_explicit') {
+          return 'oa_token';
+        }
+        return 'default_token';
+      },
+      async () => {
+        await withStub(
+          axios,
+          'post',
+          async (url, payload) => {
+            postCalls.push({ url, payload });
+            if (url.includes('access_token=default_token')) {
+              return {
+                data: {
+                  errcode: 48009,
+                  errmsg: 'api forbidden for contact assistant',
+                },
+              };
+            }
+
+            return {
+              data: {
+                errcode: 0,
+                errmsg: 'ok',
+                schedule_id: 'sch-retry-success',
+              },
+            };
+          },
+          async () => {
+            const result = await wecom.createSchedule({
+              summary: '重试测试',
+              start_time: 1700000000,
+              end_time: 1700003600,
+            });
+
+            assert.equal(tokenCalls.length, 2);
+            assert.equal(tokenCalls[0].cacheKey, 'default');
+            assert.equal(tokenCalls[1].cacheKey, 'oa_explicit');
+            assert.equal(postCalls.length, 2);
+            assert.equal(postCalls[0].url.includes('access_token=default_token'), true);
+            assert.equal(postCalls[1].url.includes('access_token=oa_token'), true);
+            assert.equal(result.errcode, 0);
+            assert.equal(result.schedule_id, 'sch-retry-success');
+          }
+        );
+      }
+    );
+  } finally {
+    wecom.corpSecret = originalCorpSecret;
+    wecom.contactSecret = originalContactSecret;
+    wecom.oaSecret = originalOaSecret;
+  }
+});
+
 test('updateSchedule 应调用 oa/schedule/update 并透传可选参数', async () => {
   const postCalls = [];
 

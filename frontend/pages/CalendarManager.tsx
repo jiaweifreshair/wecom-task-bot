@@ -430,6 +430,13 @@ const resolveErrorMessage = (error: unknown) => {
     ) {
       return '当前服务器出口 IP 尚未加入企微可信 IP，暂时无法读取组织成员。请在企业微信后台补充可信 IP 后重试。';
     }
+    if (
+      inputErrcode === 48009 ||
+      normalizedMessage.includes('e=48009') ||
+      normalizedMessage.includes('contact assistant')
+    ) {
+      return '当前日程接口被“通讯录助手”凭证拒绝（48009）。请将 `CORP_SECRET` 配置为业务应用 Secret，或新增 `WECOM_OA_SECRET/WECOM_AGENT_SECRET` 后重试。';
+    }
     return '';
   };
 

@@ -40,6 +40,12 @@ const DEFAULT_WECOM_HTTP_TIMEOUT_MS = 15000;
 // 为什么：通讯录 Secret 与应用 Secret 的权限或可信 IP 可能配置不一致，需要容错回退保障可用性。
 const USER_LIST_RETRY_ERRCODES = new Set([60011, 60020]);
 
+// OA_API_RETRY_ERRCODES
+// 是什么：OA 接口可重试错误码集合。
+// 做什么：定义在 OA 接口返回这些错误码时允许切换备用 Secret 重试。
+// 为什么：当默认 Secret 被配置为通讯录助手时，OA 日程接口会返回 `48009`，需自动兜底。
+const OA_API_RETRY_ERRCODES = new Set([48009]);
+
 // parseCommaList
 // 是什么：逗号分隔配置解析函数。
 // 做什么：将字符串配置解析为去空白、去空值后的数组。
@@ -241,7 +247,11 @@ class WeComService {
   constructor() {
     this.corpId = process.env.CORP_ID;
     this.agentId = process.env.AGENT_ID;
-    this.corpSecret = process.env.CORP_SECRET;
+    this.corpSecret = normalizeTextValue(process.env.CORP_SECRET);
+    this.oaSecret =
+      normalizeTextValue(process.env.WECOM_OA_SECRET) ||
+      normalizeTextValue(process.env.WECOM_AGENT_SECRET) ||
+      normalizeTextValue(process.env.WECOM_APP_SECRET);
     this.contactSecret = normalizeTextValue(process.env.WECOM_CONTACT_SECRET) || normalizeTextValue(process.env.CONTACT_SECRET);
     this.wecomHost = normalizeTextValue(process.env.WECOM_API_HOST) || DEFAULT_WECOM_HOST;
     this.fallbackIps = parseCommaList(process.env.WECOM_DNS_FALLBACK_IPS);
@@ -302,6 +312,94 @@ class WeComService {
   // 为什么：后续新增接口可直接复用，避免遗漏容灾配置。
   async requestPost(url, payload) {
     return axios.post(url, payload, this.buildAxiosConfig());
+  }
+
+  // buildOaTokenCandidates
+  // 是什么：OA 接口 token 候选构建函数。
+  // 做什么：按“默认 Secret -> 显式 OA Secret -> 通讯录 Secret(兜底)”顺序生成候选列表。
+  // 为什么：现场配置可能把 `CORP_SECRET` 误配成通讯录助手，需为日程接口提供可恢复路径。
+  buildOaTokenCandidates() {
+    const candidates = [];
+    const seen = new Set();
+
+    const pushCandidate = (source, tokenOptions = {}) => {
+      const corpSecret = normalizeTextValue(tokenOptions.corpSecret) || this.corpSecret;
+      const cacheKey = normalizeTextValue(tokenOptions.cacheKey) || 'default';
+      const dedupeKey = `${cacheKey}:${corpSecret}`;
+      if (!corpSecret || seen.has(dedupeKey)) {
+        return;
+      }
+
+      seen.add(dedupeKey);
+      candidates.push({
+        source,
+        tokenOptions: {
+          corpSecret,
+          cacheKey,
+        },
+      });
+    };
+
+    pushCandidate('default', { corpSecret: this.corpSecret, cacheKey: 'default' });
+    pushCandidate('oa_explicit', { corpSecret: this.oaSecret, cacheKey: 'oa_explicit' });
+    pushCandidate('contact_fallback', { corpSecret: this.contactSecret, cacheKey: 'contact_fallback' });
+
+    return candidates;
+  }
+
+  // requestOaPostWithTokenFallback
+  // 是什么：OA POST 接口自动重试函数。
+  // 做什么：使用候选 Secret 顺序请求 OA 接口，遇到 `48009` 自动切换下一候选重试。
+  // 为什么：避免因 Secret 配置混用导致“创建/更新日程”直接失败，提升线上可用性。
+  async requestOaPostWithTokenFallback(endpoint, payload, traceId) {
+    const tokenCandidates = this.buildOaTokenCandidates();
+    let lastResponseData = null;
+    let lastError = null;
+
+    for (let index = 0; index < tokenCandidates.length; index += 1) {
+      const candidate = tokenCandidates[index];
+      const isLastCandidate = index === tokenCandidates.length - 1;
+
+      try {
+        const token = await this.getAccessToken(candidate.tokenOptions);
+        const url = `https://qyapi.weixin.qq.com/cgi-bin/${endpoint}?access_token=${token}`;
+        const response = await this.requestPost(url, payload);
+        const responseData = (response && response.data) || {};
+        const errcode = Number(responseData.errcode);
+        lastResponseData = responseData;
+
+        if (errcode === 0 || isLastCandidate || !OA_API_RETRY_ERRCODES.has(errcode)) {
+          return responseData;
+        }
+
+        logWithTrace(traceId, 'wecom-service', 'oa.request.retry.next_secret', {
+          endpoint,
+          currentTokenSource: candidate.source,
+          nextTokenSource: tokenCandidates[index + 1] && tokenCandidates[index + 1].source,
+          errcode,
+          errmsg: responseData.errmsg,
+        });
+      } catch (error) {
+        lastError = error;
+        if (isLastCandidate) {
+          break;
+        }
+
+        logWithTrace(traceId, 'wecom-service', 'oa.request.retry.next_secret', {
+          endpoint,
+          currentTokenSource: candidate.source,
+          nextTokenSource: tokenCandidates[index + 1] && tokenCandidates[index + 1].source,
+          reason: 'request_exception',
+          message: error.message,
+        });
+      }
+    }
+
+    if (lastResponseData) {
+      return lastResponseData;
+    }
+
+    throw lastError || new Error(`OA 请求失败：${endpoint}`);
   }
 
   // pickNextFallbackIp
@@ -505,24 +603,22 @@ class WeComService {
    */
   async getSchedule(scheduleId) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/get?access_token=${token}`;
     logWithTrace(traceId, 'wecom-service', 'schedule.get.start', {
       scheduleId
     });
-    const response = await this.requestPost(url, {
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/get', {
       schedule_id_list: [scheduleId],
-    });
-    const scheduleList = Array.isArray(response.data && response.data.schedule_list)
-      ? response.data.schedule_list
+    }, traceId);
+    const scheduleList = Array.isArray(responseData && responseData.schedule_list)
+      ? responseData.schedule_list
       : [];
     logWithTrace(traceId, 'wecom-service', 'schedule.get.success', {
       scheduleId,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg
     });
     return {
-      ...(response.data || {}),
+      ...(responseData || {}),
       schedule_list: scheduleList,
       schedule: scheduleList[0] || null,
     };
@@ -546,27 +642,25 @@ class WeComService {
       };
     }
 
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/get?access_token=${token}`;
     logWithTrace(traceId, 'wecom-service', 'schedule.get.batch.start', {
       scheduleCount: normalizedScheduleIdList.length,
     });
-    const response = await this.requestPost(url, {
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/get', {
       schedule_id_list: normalizedScheduleIdList,
-    });
-    const scheduleList = Array.isArray(response.data && response.data.schedule_list)
-      ? response.data.schedule_list
+    }, traceId);
+    const scheduleList = Array.isArray(responseData && responseData.schedule_list)
+      ? responseData.schedule_list
       : [];
 
     logWithTrace(traceId, 'wecom-service', 'schedule.get.batch.success', {
       scheduleCount: normalizedScheduleIdList.length,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
       resultCount: scheduleList.length,
     });
 
     return {
-      ...(response.data || {}),
+      ...(responseData || {}),
       schedule_list: scheduleList,
     };
   }
@@ -576,24 +670,22 @@ class WeComService {
    */
   async getScheduleList(calId, offset = 0, limit = 500) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/get_by_calendar?access_token=${token}`;
     logWithTrace(traceId, 'wecom-service', 'schedule.list.start', {
       calId,
       offset,
       limit
     });
-    const response = await this.requestPost(url, {
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/get_by_calendar', {
       cal_id: calId,
       offset: offset,
       limit: limit,
-    });
+    }, traceId);
     logWithTrace(traceId, 'wecom-service', 'schedule.list.success', {
       calId,
-      errcode: response.data && response.data.errcode,
-      scheduleCount: (response.data && response.data.schedule_list && response.data.schedule_list.length) || 0
+      errcode: responseData && responseData.errcode,
+      scheduleCount: (responseData && responseData.schedule_list && responseData.schedule_list.length) || 0
     });
-    return response.data;
+    return responseData;
   }
 
   // getCalendarByIds
@@ -602,8 +694,6 @@ class WeComService {
   // 为什么：登录建历需要验证历史映射是否仍然可用，避免使用失效 cal_id。
   async getCalendarByIds(calIdList = []) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/get?access_token=${token}`;
     const normalizedCalIdList = (Array.isArray(calIdList) ? calIdList : [])
       .map((item) => normalizeTextValue(item))
       .filter(Boolean);
@@ -612,17 +702,17 @@ class WeComService {
       calIdCount: normalizedCalIdList.length,
     });
 
-    const response = await this.requestPost(url, {
+    const responseData = await this.requestOaPostWithTokenFallback('oa/calendar/get', {
       cal_id_list: normalizedCalIdList,
-    });
+    }, traceId);
 
     logWithTrace(traceId, 'wecom-service', 'calendar.list.success', {
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
       calendarCount:
-        (response.data && response.data.calendar_list && response.data.calendar_list.length) || 0,
+        (responseData && responseData.calendar_list && responseData.calendar_list.length) || 0,
     });
-    return response.data;
+    return responseData;
   }
 
   // createCalendar
@@ -631,8 +721,6 @@ class WeComService {
   // 为什么：首次登录账号需要自动建立可同步日历，减少人工配置成本。
   async createCalendar(options = {}) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/add?access_token=${token}`;
     const body = buildCreateCalendarPayload(options, this.agentId);
     const summary = normalizeTextValue(body && body.calendar && body.calendar.summary);
     const color = normalizeTextValue(body && body.calendar && body.calendar.color);
@@ -651,14 +739,14 @@ class WeComService {
         : 0,
     });
 
-    const response = await this.requestPost(url, body);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/calendar/add', body, traceId);
     logWithTrace(traceId, 'wecom-service', 'calendar.create.success', {
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
-      calId: response.data && response.data.cal_id,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
+      calId: responseData && responseData.cal_id,
     });
 
-    return response.data;
+    return responseData;
   }
 
   // updateCalendar
@@ -667,8 +755,6 @@ class WeComService {
   // 为什么：日历维护页面需要完整编辑能力，必须与官方“覆盖更新”语义保持一致。
   async updateCalendar(calendar = {}, options = {}) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/update?access_token=${token}`;
     const payload = {
       calendar: calendar && typeof calendar === 'object' ? { ...calendar } : {},
     };
@@ -683,13 +769,13 @@ class WeComService {
       skipPublicRange: payload.skip_public_range,
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/calendar/update', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'calendar.update.success', {
       calId: payload.calendar && payload.calendar.cal_id,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
     });
-    return response.data;
+    return responseData;
   }
 
   // deleteCalendar
@@ -703,8 +789,6 @@ class WeComService {
       throw new Error('cal_id 不能为空');
     }
 
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/calendar/del?access_token=${token}`;
     const payload = {
       cal_id: normalizedCalId,
     };
@@ -713,13 +797,13 @@ class WeComService {
       calId: normalizedCalId,
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/calendar/del', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'calendar.delete.success', {
       calId: normalizedCalId,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
     });
-    return response.data;
+    return responseData;
   }
 
   // createSchedule
@@ -728,8 +812,6 @@ class WeComService {
   // 为什么：手动创建任务需要与企微日历建立可回查的 `schedule_id` 关联。
   async createSchedule(schedule = {}) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/add?access_token=${token}`;
     const payload = sanitizeCreateSchedulePayload(schedule);
 
     logWithTrace(traceId, 'wecom-service', 'schedule.create.start', {
@@ -740,15 +822,15 @@ class WeComService {
       organizerStripped: Boolean(schedule && schedule.organizer),
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/add', payload, traceId);
 
     logWithTrace(traceId, 'wecom-service', 'schedule.create.success', {
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
-      scheduleId: response.data && response.data.schedule_id,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
+      scheduleId: responseData && responseData.schedule_id,
     });
 
-    return response.data;
+    return responseData;
   }
 
   // updateSchedule
@@ -757,8 +839,6 @@ class WeComService {
   // 为什么：官方接口更新语义为覆盖式，需显式透传 `skip_attendees/op_mode/op_start_time` 以适配真实场景。
   async updateSchedule(schedule = {}, options = {}) {
     const traceId = createTraceId();
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/update?access_token=${token}`;
     const payload = {
       schedule,
     };
@@ -784,14 +864,14 @@ class WeComService {
       hasOpStartTime: Boolean(payload.op_start_time),
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/update', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'schedule.update.success', {
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
-      scheduleId: response.data && response.data.schedule_id,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
+      scheduleId: responseData && responseData.schedule_id,
     });
 
-    return response.data;
+    return responseData;
   }
 
   // cancelSchedule
@@ -805,8 +885,6 @@ class WeComService {
       throw new Error('schedule_id 不能为空');
     }
 
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/del?access_token=${token}`;
     const payload = {
       schedule_id: normalizedScheduleId,
     };
@@ -826,14 +904,14 @@ class WeComService {
       hasOpStartTime: Boolean(payload.op_start_time),
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/del', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'schedule.cancel.success', {
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
       scheduleId: normalizedScheduleId,
     });
 
-    return response.data;
+    return responseData;
   }
 
   // addScheduleAttendees
@@ -847,8 +925,6 @@ class WeComService {
       throw new Error('schedule_id 不能为空');
     }
 
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/add_attendees?access_token=${token}`;
     const payload = {
       schedule_id: normalizedScheduleId,
       attendees: Array.isArray(attendees) ? attendees : [],
@@ -859,14 +935,14 @@ class WeComService {
       attendeeCount: payload.attendees.length,
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/add_attendees', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'schedule.attendees.add.success', {
       scheduleId: normalizedScheduleId,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
     });
 
-    return response.data;
+    return responseData;
   }
 
   // removeScheduleAttendees
@@ -880,8 +956,6 @@ class WeComService {
       throw new Error('schedule_id 不能为空');
     }
 
-    const token = await this.getAccessToken();
-    const url = `https://qyapi.weixin.qq.com/cgi-bin/oa/schedule/del_attendees?access_token=${token}`;
     const payload = {
       schedule_id: normalizedScheduleId,
       attendees: Array.isArray(attendees) ? attendees : [],
@@ -892,14 +966,14 @@ class WeComService {
       attendeeCount: payload.attendees.length,
     });
 
-    const response = await this.requestPost(url, payload);
+    const responseData = await this.requestOaPostWithTokenFallback('oa/schedule/del_attendees', payload, traceId);
     logWithTrace(traceId, 'wecom-service', 'schedule.attendees.remove.success', {
       scheduleId: normalizedScheduleId,
-      errcode: response.data && response.data.errcode,
-      errmsg: response.data && response.data.errmsg,
+      errcode: responseData && responseData.errcode,
+      errmsg: responseData && responseData.errmsg,
     });
 
-    return response.data;
+    return responseData;
   }
 
   /**
