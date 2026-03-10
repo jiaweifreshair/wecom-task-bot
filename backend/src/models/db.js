@@ -161,6 +161,117 @@ db.serialize(() => {
       });
     }
   );
+
+  db.run(
+    `CREATE TABLE IF NOT EXISTS wecom_contact_users (
+      user_id TEXT PRIMARY KEY,
+      name TEXT,
+      department_ids_json TEXT DEFAULT '[]',
+      main_department INTEGER,
+      is_leader_in_dept_json TEXT DEFAULT '[]',
+      direct_leader_user_ids_json TEXT DEFAULT '[]',
+      position TEXT,
+      mobile TEXT,
+      gender INTEGER,
+      email TEXT,
+      biz_mail TEXT,
+      status INTEGER,
+      avatar TEXT,
+      telephone TEXT,
+      address TEXT,
+      alias TEXT,
+      qr_code TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        logWithTrace(traceId, 'db', 'schema.init.error', {
+          table: 'wecom_contact_users',
+          message: err.message,
+        });
+        return;
+      }
+
+      logWithTrace(traceId, 'db', 'schema.init.success', {
+        table: 'wecom_contact_users',
+      });
+    }
+  );
+
+  db.run(
+    `CREATE TABLE IF NOT EXISTS wecom_contact_departments (
+      department_id INTEGER PRIMARY KEY,
+      name TEXT,
+      parent_department_id INTEGER,
+      order_value INTEGER,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        logWithTrace(traceId, 'db', 'schema.init.error', {
+          table: 'wecom_contact_departments',
+          message: err.message,
+        });
+        return;
+      }
+
+      logWithTrace(traceId, 'db', 'schema.init.success', {
+        table: 'wecom_contact_departments',
+      });
+    }
+  );
+
+  db.run(
+    `CREATE TABLE IF NOT EXISTS wecom_contact_tags (
+      tag_id INTEGER PRIMARY KEY,
+      name TEXT,
+      add_user_items_json TEXT DEFAULT '[]',
+      del_user_items_json TEXT DEFAULT '[]',
+      add_party_items_json TEXT DEFAULT '[]',
+      del_party_items_json TEXT DEFAULT '[]',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        logWithTrace(traceId, 'db', 'schema.init.error', {
+          table: 'wecom_contact_tags',
+          message: err.message,
+        });
+        return;
+      }
+
+      logWithTrace(traceId, 'db', 'schema.init.success', {
+        table: 'wecom_contact_tags',
+      });
+    }
+  );
+
+  db.run(
+    `CREATE TABLE IF NOT EXISTS wecom_contact_event_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      change_type TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    (err) => {
+      if (err) {
+        logWithTrace(traceId, 'db', 'schema.init.error', {
+          table: 'wecom_contact_event_log',
+          message: err.message,
+        });
+        return;
+      }
+
+      logWithTrace(traceId, 'db', 'schema.init.success', {
+        table: 'wecom_contact_event_log',
+      });
+    }
+  );
 });
 
 module.exports = db;

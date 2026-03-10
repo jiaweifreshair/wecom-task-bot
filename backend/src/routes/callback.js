@@ -3,7 +3,8 @@ const crypto = require('crypto');
 const path = require('path');
 const router = express.Router();
 const WXBizMsgCrypt = require('../utils/wxcrypto');
-const { taskService, TaskOperationError } = require('../services/task');
+const { TaskOperationError } = require('../services/task');
+const { dispatchWecomCallbackMessage } = require('../services/wecom-callback-dispatch');
 const {
   createTraceId,
   logWithTrace,
@@ -373,30 +374,28 @@ router.post('/callback', async (req, res) => {
       message
     });
 
-    // 4. Handle Task Card Event
-    if (message.MsgType === 'event' && message.Event === 'template_card_event') {
-      const taskId = resolveTaskIdFromMessage(message);
-      const selectedKey = resolveSelectedKeyFromMessage(message);
-      const interactionPayload = {
-        UserID: message.FromUserName,
-        TaskId: taskId,
-        SelectedKey: selectedKey,
-      };
+    // 4. Dispatch Business Event
+    const dispatchResult = await dispatchWecomCallbackMessage(message, {
+      traceId,
+    });
 
+    if (dispatchResult.kind === 'template_card_event') {
       logWecomCallback(traceId, 'callback.post.task_interaction.in', {
-        interactionPayload
+        interactionPayload: dispatchResult.interactionPayload
       });
 
-      const interactionResult = await taskService.handleInteraction(interactionPayload);
-
       logWecomCallback(traceId, 'callback.post.task_interaction.out', {
-        interactionResult
+        interactionResult: dispatchResult.interactionResult
+      });
+    } else if (dispatchResult.kind === 'change_contact') {
+      logWecomCallback(traceId, 'callback.post.change_contact.out', {
+        changeResult: dispatchResult
       });
     } else {
       logWecomCallback(traceId, 'callback.post.event.skipped', {
-        reason: 'unsupported_message_type_or_event',
-        msgType: message.MsgType,
-        event: message.Event
+        reason: dispatchResult.reason || 'unsupported_message_type_or_event',
+        msgType: dispatchResult.msgType || message.MsgType,
+        event: dispatchResult.event || message.Event
       });
     }
 
