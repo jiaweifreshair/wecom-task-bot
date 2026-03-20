@@ -32,6 +32,12 @@ const createManualScheduleId = () => {
   return `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 };
 
+// DEFAULT_AUTO_CALENDAR_COLOR
+// 是什么：任务分配自动建历默认颜色常量。
+// 做什么：在执行人尚未绑定个人日历时，为系统补建日历提供稳定默认颜色。
+// 为什么：用户要求“分配任务就是日历工作内容”，因此任务创建时应尽量落成真实日历日程。
+const DEFAULT_AUTO_CALENDAR_COLOR = '#FF3030';
+
 // parseIsoDate
 // 是什么：ISO日期解析函数。
 // 做什么：将输入值解析为合法日期对象，失败时返回 `null`。
@@ -59,6 +65,99 @@ const toUnixSeconds = (dateValue) => {
     return 0;
   }
   return Math.floor(dateValue.getTime() / 1000);
+};
+
+// toUnixSecondsFromStoredValue
+// 是什么：数据库时间字段秒级时间戳转换函数。
+// 做什么：把 SQLite 中保存的 UTC 文本时间恢复为秒级 Unix 时间戳，失败时返回 0。
+// 为什么：详情回拉失败时需要用已有任务时间补齐回退日程，避免把开始/结束时间误写成 1970。
+const toUnixSecondsFromStoredValue = (value) => {
+  const normalizedValue = normalizeText(value);
+  if (!normalizedValue) {
+    return 0;
+  }
+
+  const sqliteUtcLikeValue = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(normalizedValue)
+    ? `${normalizedValue.replace(' ', 'T')}Z`
+    : normalizedValue;
+  const parsedDate = parseIsoDate(sqliteUtcLikeValue);
+
+  return parsedDate ? toUnixSeconds(parsedDate) : 0;
+};
+
+// buildTaskBackedFallbackSchedule
+// 是什么：基于现有任务快照的回退日程构建函数。
+// 做什么：先用已入库任务补齐 organizer、attendees、cal_id 与时间字段，再叠加本次请求里显式更新的字段。
+// 为什么：企微详情临时回拉失败时，仍要保留原执行人和时间上下文，避免把任务静默改给当前操作者。
+const buildTaskBackedFallbackSchedule = (
+  taskRow = null,
+  fallbackSchedule = null,
+  scheduleId = '',
+  fallbackUserId = '',
+  fallbackCalId = ''
+) => {
+  const normalizedTaskRow = taskRow && typeof taskRow === 'object' ? taskRow : null;
+  const normalizedFallbackSchedule =
+    fallbackSchedule && typeof fallbackSchedule === 'object'
+      ? { ...fallbackSchedule }
+      : {};
+  const organizerUserId = normalizeText(
+    (normalizedFallbackSchedule.organizer && normalizedFallbackSchedule.organizer.userid) ||
+      normalizedFallbackSchedule.organizer ||
+      normalizedFallbackSchedule.creator_userid ||
+      (normalizedTaskRow && normalizedTaskRow.creator_userid) ||
+      (normalizedTaskRow && normalizedTaskRow.owner_userid) ||
+      fallbackUserId
+  );
+  const executorUserId = normalizeText(
+    normalizedFallbackSchedule.executor_userid ||
+      (normalizedTaskRow && normalizedTaskRow.executor_userid) ||
+      organizerUserId
+  );
+  const baseSchedule = {
+    schedule_id: normalizeText(
+      scheduleId ||
+        normalizedFallbackSchedule.schedule_id ||
+        (normalizedTaskRow && normalizedTaskRow.wecom_schedule_id)
+    ),
+    cal_id: normalizeText((normalizedTaskRow && normalizedTaskRow.owner_cal_id) || fallbackCalId),
+    summary: normalizeText(normalizedTaskRow && normalizedTaskRow.title),
+    description: normalizeText(normalizedTaskRow && normalizedTaskRow.description),
+    organizer: organizerUserId ? { userid: organizerUserId } : undefined,
+    start_time: toUnixSecondsFromStoredValue(normalizedTaskRow && normalizedTaskRow.start_time),
+    end_time: toUnixSecondsFromStoredValue(normalizedTaskRow && normalizedTaskRow.end_time),
+  };
+
+  if (executorUserId) {
+    baseSchedule.attendees = [{ userid: executorUserId }];
+  }
+
+  const mergedSchedule = {
+    ...baseSchedule,
+    ...normalizedFallbackSchedule,
+  };
+
+  if (
+    baseSchedule.attendees &&
+    !Object.prototype.hasOwnProperty.call(normalizedFallbackSchedule, 'attendees') &&
+    !Object.prototype.hasOwnProperty.call(normalizedFallbackSchedule, 'attendee')
+  ) {
+    mergedSchedule.attendees = baseSchedule.attendees;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(normalizedFallbackSchedule, 'organizer') && baseSchedule.organizer) {
+    mergedSchedule.organizer = baseSchedule.organizer;
+  }
+
+  if (!normalizeText(mergedSchedule.schedule_id) && scheduleId) {
+    mergedSchedule.schedule_id = scheduleId;
+  }
+
+  if (!normalizeText(mergedSchedule.cal_id || mergedSchedule.calendar_id) && baseSchedule.cal_id) {
+    mergedSchedule.cal_id = baseSchedule.cal_id;
+  }
+
+  return mergedSchedule;
 };
 
 const runSql = (sql, params = []) => {
@@ -139,6 +238,99 @@ class TaskService {
       userCalendarMapRaw: process.env.USER_CALENDAR_MAP || '',
       userCalendarRows,
     });
+  }
+
+  // ensureOwnerCalendarId
+  // 是什么：任务归属用户日历确保函数。
+  // 做什么：优先复用现有映射，缺失时自动创建并回写执行人的个人日历映射。
+  // 为什么：用户要求“分配任务即日历工作内容”，任务创建不能只停留在本地任务表。
+  async ensureOwnerCalendarId(ownerUserId, ownerUserName = '') {
+    const traceId = createTraceId();
+    const normalizedOwnerUserId = normalizeText(ownerUserId);
+    const normalizedOwnerUserName = normalizeText(ownerUserName);
+
+    if (!normalizedOwnerUserId) {
+      return '';
+    }
+
+    const existedCalendarId = await this.resolveOwnerCalendarId(normalizedOwnerUserId);
+    if (existedCalendarId) {
+      return existedCalendarId;
+    }
+
+    const calendarSummary = `任务管家-${normalizedOwnerUserName || normalizedOwnerUserId}`;
+
+    try {
+      const createCalendarResult = await wecom.createCalendar({
+        summary: calendarSummary,
+        color: normalizeText(process.env.AUTO_USER_CALENDAR_COLOR) || DEFAULT_AUTO_CALENDAR_COLOR,
+        description: `任务管家自动创建，绑定账号 ${normalizedOwnerUserId}`,
+      });
+      const createdCalId = normalizeText(createCalendarResult && createCalendarResult.cal_id);
+
+      if (!createdCalId || Number(createCalendarResult && createCalendarResult.errcode) !== 0) {
+        logWithTrace(traceId, 'task-service', 'ensure_owner_calendar.create_reject', {
+          ownerUserId: normalizedOwnerUserId,
+          ownerUserName: normalizedOwnerUserName,
+          errcode: createCalendarResult && createCalendarResult.errcode,
+          errmsg: createCalendarResult && createCalendarResult.errmsg,
+        });
+        return '';
+      }
+
+      await userCalendarStore.upsertUserCalendarRow({
+        user_id: normalizedOwnerUserId,
+        cal_id: createdCalId,
+        calendar_summary: calendarSummary,
+        source: 'task_auto_created',
+      });
+
+      return createdCalId;
+    } catch (error) {
+      logWithTrace(traceId, 'task-service', 'ensure_owner_calendar.create_error', {
+        ownerUserId: normalizedOwnerUserId,
+        ownerUserName: normalizedOwnerUserName,
+        message: error.message,
+      });
+      return '';
+    }
+  }
+
+  // resolveCalendarContextByCalId
+  // 是什么：按日历 ID 解析任务归属上下文函数。
+  // 做什么：优先从数据库映射反查账号，失败时回退到调用方传入的用户。
+  // 为什么：日历页直接改日程后，需要知道任务应挂到哪个账号名下。
+  async resolveCalendarContextByCalId(calId, fallbackUserId = '') {
+    const normalizedCalId = normalizeText(calId);
+    const normalizedFallbackUserId = normalizeText(fallbackUserId);
+
+    if (!normalizedCalId) {
+      return {
+        user_id: normalizedFallbackUserId,
+        cal_id: '',
+      };
+    }
+
+    try {
+      const row = await userCalendarStore.getUserCalendarRowByCalId(normalizedCalId);
+      if (row) {
+        return {
+          user_id: normalizeText(row.user_id) || normalizedFallbackUserId,
+          cal_id: normalizedCalId,
+        };
+      }
+    } catch (error) {
+      logWithTrace(createTraceId(), 'task-service', 'resolve_calendar_context.db_error', {
+        calId: normalizedCalId,
+        fallbackUserId: normalizedFallbackUserId,
+        message: error.message,
+      });
+    }
+
+    return {
+      user_id: normalizedFallbackUserId,
+      cal_id: normalizedCalId,
+    };
   }
 
   buildVerifierRecipients(task) {
@@ -368,7 +560,7 @@ class TaskService {
     }
 
     const ownerUserId = executorUserId || creatorId;
-    const ownerCalendarId = await this.resolveOwnerCalendarId(ownerUserId);
+    const ownerCalendarId = await this.ensureOwnerCalendarId(ownerUserId, normalizeText(payload.executor_name));
 
     let scheduleId = createManualScheduleId();
 
@@ -617,10 +809,102 @@ class TaskService {
     };
   }
 
-  async dispatchTaskReminder(task, source = 'sync_cron') {
+  // syncScheduleTaskById
+  // 是什么：按 `schedule_id` 实时同步任务函数。
+  // 做什么：优先回拉企微最新日程详情，失败时回退请求载荷，再统一写入任务表。
+  // 为什么：日历页的创建/编辑/参与人操作都应立刻反映到任务、仪表盘和团队统计。
+  async syncScheduleTaskById(scheduleId, options = {}) {
     const traceId = createTraceId();
-    const reminderKind = getReminderKind(task);
-    if (!shouldSendReminder(task, reminderKind)) {
+    const normalizedScheduleId = normalizeText(scheduleId);
+    const fallbackUserId = normalizeText(options.fallbackUserId);
+    const fallbackCalId = normalizeText(options.fallbackCalId);
+    const fallbackSchedule =
+      options && options.fallbackSchedule && typeof options.fallbackSchedule === 'object'
+        ? { ...options.fallbackSchedule }
+        : null;
+
+    if (!normalizedScheduleId) {
+      return {
+        synced: false,
+        reason: 'schedule_id_missing',
+      };
+    }
+
+    let scheduleDetail = null;
+
+    try {
+      const scheduleResult = await wecom.getSchedule(normalizedScheduleId);
+      if (scheduleResult && scheduleResult.errcode === 0 && scheduleResult.schedule) {
+        scheduleDetail = scheduleResult.schedule;
+      }
+    } catch (error) {
+      logWithTrace(traceId, 'task-service', 'sync_schedule_by_id.detail_error', {
+        scheduleId: normalizedScheduleId,
+        message: error.message,
+      });
+    }
+
+    const existedTask = fallbackSchedule ? await this.getTaskByScheduleId(normalizedScheduleId) : null;
+    const normalizedSchedule = scheduleDetail
+      ? { ...scheduleDetail }
+      : fallbackSchedule
+      ? buildTaskBackedFallbackSchedule(
+          existedTask,
+          fallbackSchedule,
+          normalizedScheduleId,
+          fallbackUserId,
+          fallbackCalId
+        )
+      : null;
+
+    if (!normalizedSchedule) {
+      return {
+        synced: false,
+        reason: 'schedule_detail_unavailable',
+      };
+    }
+
+    const calendarContext = await this.resolveCalendarContextByCalId(
+      normalizeText(normalizedSchedule.cal_id || normalizedSchedule.calendar_id || fallbackCalId),
+      fallbackUserId
+    );
+    const syncResult = await this.syncScheduleTask(normalizedSchedule, calendarContext);
+
+    return {
+      synced: !syncResult.skipped,
+      ...syncResult,
+    };
+  }
+
+  // deleteTaskByScheduleId
+  // 是什么：按日程 ID 删除任务函数。
+  // 做什么：在日程被取消时删除同一 `schedule_id` 对应的任务记录。
+  // 为什么：取消后的日程不应继续污染任务列表、仪表盘和团队统计。
+  async deleteTaskByScheduleId(scheduleId) {
+    const normalizedScheduleId = normalizeText(scheduleId);
+    if (!normalizedScheduleId) {
+      return {
+        deleted: false,
+        reason: 'schedule_id_missing',
+      };
+    }
+
+    const result = await runSql(`DELETE FROM tasks WHERE wecom_schedule_id = ?`, [normalizedScheduleId]);
+
+    return {
+      deleted: Number(result && result.changes) > 0,
+      schedule_id: normalizedScheduleId,
+    };
+  }
+
+  // dispatchTaskReminder
+  // 是什么：任务日期提醒发送函数。
+  // 做什么：基于当前时点判断任务是否应发送到期/逾期提醒，并回写提醒状态。
+  // 为什么：测试和定时任务都需要复用同一提醒逻辑，因此额外开放 `now` 参数便于稳定校验。
+  async dispatchTaskReminder(task, source = 'sync_cron', now = new Date()) {
+    const traceId = createTraceId();
+    const reminderKind = getReminderKind(task, now);
+    if (!shouldSendReminder(task, reminderKind, now)) {
       return {
         sent: false,
         kind: reminderKind,

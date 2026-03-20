@@ -135,6 +135,87 @@ ensure_backend_dependencies() {
     cd "${SCRIPT_DIR}" || exit 1
 }
 
+# detect_linux_package_manager
+# 是什么：Linux 包管理器探测函数。
+# 做什么：按常见发行版顺序返回当前可用的安装命令。
+# 为什么：缺少原生编译链时，需要给出与当前环境匹配的修复指令，减少人工判断成本。
+detect_linux_package_manager() {
+    if command -v dnf >/dev/null 2>&1; then
+        echo "dnf"
+        return
+    fi
+
+    if command -v yum >/dev/null 2>&1; then
+        echo "yum"
+        return
+    fi
+
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "apt-get"
+        return
+    fi
+
+    echo ""
+}
+
+# print_sqlite3_build_toolchain_help
+# 是什么：sqlite3 原生编译依赖提示函数。
+# 做什么：根据系统包管理器输出安装 `g++/make/python3` 的建议命令。
+# 为什么：`sqlite3` 预编译二进制缺失时会回退到 node-gyp，本地缺编译工具会直接失败。
+print_sqlite3_build_toolchain_help() {
+    local package_manager="$1"
+
+    echo -e "${RED}Error: sqlite3 fallback build requires native build tools, but they are missing.${NC}"
+    echo -e "${YELLOW}Please install g++, make, and python3 first, then rerun 'bash start.sh'.${NC}"
+
+    case "${package_manager}" in
+        dnf)
+            echo "Suggested command: sudo dnf install -y gcc-c++ make python3"
+            ;;
+        yum)
+            echo "Suggested command: sudo yum install -y gcc-c++ make python3"
+            ;;
+        apt-get)
+            echo "Suggested command: sudo apt-get update && sudo apt-get install -y g++ make python3"
+            ;;
+        *)
+            echo "Suggested packages: g++, make, python3"
+            ;;
+    esac
+}
+
+# ensure_sqlite3_build_toolchain
+# 是什么：sqlite3 原生编译链检查函数。
+# 做什么：在 Linux 环境下校验 `g++/make/python3` 是否齐全，缺失时输出修复提示并返回非零。
+# 为什么：先尝试预编译包自愈，只有确认恢复失败后才提示补工具链，避免把可自动恢复的场景提前拦死。
+ensure_sqlite3_build_toolchain() {
+    if [ "$(uname -s)" != "Linux" ]; then
+        return 0
+    fi
+
+    local missing_tools=()
+
+    if ! command -v g++ >/dev/null 2>&1; then
+        missing_tools+=("g++")
+    fi
+
+    if ! command -v make >/dev/null 2>&1; then
+        missing_tools+=("make")
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        missing_tools+=("python3")
+    fi
+
+    if [ ${#missing_tools[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}Detected missing native build tools for sqlite3: ${missing_tools[*]}${NC}"
+    print_sqlite3_build_toolchain_help "$(detect_linux_package_manager)"
+    return 1
+}
+
 # verify_backend_native_modules
 # 是什么：后端原生依赖可加载性检查函数。
 # 做什么：检测 `sqlite3` 是否能被当前 Node.js 运行时正常加载，失败时自动重装后端依赖。
@@ -161,11 +242,13 @@ verify_backend_native_modules() {
         fi
 
         if ! npm install --include=optional; then
+            ensure_sqlite3_build_toolchain || true
             echo -e "${RED}Error: backend npm install failed during native module recovery.${NC}"
             exit 1
         fi
 
         if ! node -e "require('sqlite3')" >/dev/null 2>&1; then
+            ensure_sqlite3_build_toolchain || true
             echo -e "${RED}Error: sqlite3 is still not loadable after reinstall.${NC}"
             echo -e "${RED}Please confirm container architecture, Node.js version, and network access for native package download.${NC}"
             exit 1

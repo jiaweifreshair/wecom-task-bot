@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --require ./test/setup-test-env.js --test --test-concurrency=1 test/*.test.js",
     "verify:real": "node scripts/verify-real-integration.js"
   },
   "dependencies": {

@@ -5,7 +5,13 @@ const wecom = require('../services/wecom');
 const jwt = require('jsonwebtoken');
 const syncService = require('../services/sync');
 const { taskService, TaskOperationError } = require('../services/task');
-const { parseGlobalVerifiers, mapTaskRowToApi, buildTaskKpi, normalizeText } = require('../services/task-lifecycle');
+const {
+  parseGlobalVerifiers,
+  mapTaskRowToApi,
+  buildTaskKpi,
+  buildTaskTeamStats,
+  normalizeText,
+} = require('../services/task-lifecycle');
 const { resolveTaskQueryScope } = require('../services/task-scope');
 const { resolveAuthLoginMode, buildAuthLoginRedirectUrl } = require('../services/auth-login-url');
 const { userCalendarService } = require('../services/user-calendar');
@@ -87,6 +93,170 @@ const runSql = (sql, params = []) => {
       });
     });
   });
+};
+
+// parseContactDepartmentIds
+// 是什么：通讯录成员部门列表解析函数。
+// 做什么：兼容 JSON 数组、逗号分隔字符串和单值输入，统一输出正整数部门 ID 列表。
+// 为什么：本地通讯录快照来源可能跨版本演进，回退查询必须兼容历史字段形态。
+const parseContactDepartmentIds = (value) => {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => Number(item))
+          .filter((item) => Number.isInteger(item) && item > 0)
+      )
+    );
+  }
+
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(normalized);
+    if (Array.isArray(parsed)) {
+      return parseContactDepartmentIds(parsed);
+    }
+  } catch (error) {
+    // ignore json parse error
+  }
+
+  return Array.from(
+    new Set(
+      normalized
+        .split(',')
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    )
+  );
+};
+
+// buildContactDepartmentScope
+// 是什么：本地通讯录部门范围解析函数。
+// 做什么：基于请求部门与本地部门树，计算“当前部门 + 子部门”的可匹配范围。
+// 为什么：本地缓存回退时也要尽量保持与企微 `fetch_child` 查询一致的过滤语义。
+const buildContactDepartmentScope = async (departmentId, fetchChild) => {
+  const targetDepartmentId = Number(departmentId || 0);
+  if (!Number.isInteger(targetDepartmentId) || targetDepartmentId <= 0) {
+    return new Set();
+  }
+
+  if (!fetchChild) {
+    return new Set([targetDepartmentId]);
+  }
+
+  const rows = await allSql(
+    `SELECT department_id, parent_department_id
+       FROM wecom_contact_departments`
+  );
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return targetDepartmentId === 1 ? new Set() : new Set([targetDepartmentId]);
+  }
+
+  const childMap = new Map();
+  rows.forEach((row) => {
+    const departmentRowId = Number(row && row.department_id);
+    const parentDepartmentId = Number(row && row.parent_department_id);
+    if (!Number.isInteger(departmentRowId) || departmentRowId <= 0) {
+      return;
+    }
+
+    if (!Number.isInteger(parentDepartmentId) || parentDepartmentId <= 0) {
+      return;
+    }
+
+    const children = childMap.get(parentDepartmentId) || [];
+    children.push(departmentRowId);
+    childMap.set(parentDepartmentId, children);
+  });
+
+  const scope = new Set([targetDepartmentId]);
+  if (targetDepartmentId === 1) {
+    rows.forEach((row) => {
+      const departmentRowId = Number(row && row.department_id);
+      if (Number.isInteger(departmentRowId) && departmentRowId > 0) {
+        scope.add(departmentRowId);
+      }
+    });
+  }
+
+  const queue = [targetDepartmentId];
+  while (queue.length > 0) {
+    const currentDepartmentId = queue.shift();
+    const children = childMap.get(currentDepartmentId) || [];
+    children.forEach((childDepartmentId) => {
+      if (scope.has(childDepartmentId)) {
+        return;
+      }
+
+      scope.add(childDepartmentId);
+      queue.push(childDepartmentId);
+    });
+  }
+
+  return scope;
+};
+
+// listLocalContactUsers
+// 是什么：本地通讯录快照读取函数。
+// 做什么：从 `wecom_contact_users` 中读取成员，并按部门范围与成员状态过滤后返回前端所需结构。
+// 为什么：当企微实时通讯录接口网络异常时，页面仍需要可用候选列表支撑排期操作。
+const listLocalContactUsers = async ({ departmentId, fetchChild, status }) => {
+  const statusFilter = Number(status || 0);
+  const departmentScope = await buildContactDepartmentScope(departmentId, fetchChild);
+  const rows = await allSql(
+    `SELECT user_id, name, position, mobile, email, alias, status, main_department, department_ids_json
+       FROM wecom_contact_users`
+  );
+
+  return rows
+    .filter((row) => {
+      const rowStatus = Number(row && row.status);
+      if (Number.isInteger(statusFilter) && statusFilter > 0 && rowStatus !== statusFilter) {
+        return false;
+      }
+
+      if (departmentScope.size === 0) {
+        return true;
+      }
+
+      const departmentIds = new Set(parseContactDepartmentIds(row && row.department_ids_json));
+      const mainDepartmentId = Number(row && row.main_department);
+      if (Number.isInteger(mainDepartmentId) && mainDepartmentId > 0) {
+        departmentIds.add(mainDepartmentId);
+      }
+
+      if (departmentIds.size === 0) {
+        return false;
+      }
+
+      return Array.from(departmentIds).some((item) => departmentScope.has(item));
+    })
+    .map((row) => {
+      const department = parseContactDepartmentIds(row && row.department_ids_json);
+      const normalizedStatus = Number(row && row.status);
+
+      return {
+        userid: normalizeText(row && row.user_id),
+        name: normalizeText(row && row.name),
+        position: normalizeText(row && row.position),
+        mobile: normalizeText(row && row.mobile),
+        email: normalizeText(row && row.email),
+        alias: normalizeText(row && row.alias),
+        status: Number.isInteger(normalizedStatus) ? normalizedStatus : undefined,
+        department,
+      };
+    })
+    .filter((row) => row.userid)
+    .sort((left, right) => {
+      const leftName = String(left.name || left.userid || '');
+      const rightName = String(right.name || right.userid || '');
+      return leftName.localeCompare(rightName, 'zh-Hans-CN');
+    });
 };
 
 // parseIdList
@@ -253,6 +423,79 @@ const withTaskOperationHandler = (handler) => {
   };
 };
 
+// buildFallbackSchedulePayload
+// 是什么：日程联动回退载荷构建函数。
+// 做什么：保留当前请求里显式提交的日程字段，并补上 `schedule_id` 供详情回拉失败时兜底同步。
+// 为什么：回退同步应只携带“本次确实修改了什么”，其余字段交给已有任务快照补齐，避免误覆盖原参与人。
+const buildFallbackSchedulePayload = (schedule = {}, scheduleId = '') => {
+  const normalizedSchedule =
+    schedule && typeof schedule === 'object'
+      ? { ...schedule }
+      : {};
+
+  if (scheduleId) {
+    normalizedSchedule.schedule_id = scheduleId;
+  }
+
+  return normalizedSchedule;
+};
+
+// syncTaskForScheduleMutation
+// 是什么：日程变更后的任务同步包装函数。
+// 做什么：调用任务服务做实时同步，并在异常时转为可序列化的 `task_sync` 结果返回前端。
+// 为什么：日历操作已经生效后，不应因为本地任务联动失败而把整个接口判为失败。
+const syncTaskForScheduleMutation = async (options = {}) => {
+  const traceId = normalizeText(options.traceId) || createTraceId();
+  const scheduleId = normalizeText(options.scheduleId);
+
+  try {
+    return await taskService.syncScheduleTaskById(scheduleId, {
+      fallbackUserId: options.fallbackUserId,
+      fallbackCalId: options.fallbackCalId,
+      fallbackSchedule: options.fallbackSchedule,
+    });
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.task_sync.error', {
+      scheduleId,
+      fallbackUserId: options.fallbackUserId,
+      fallbackCalId: options.fallbackCalId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    return {
+      synced: false,
+      reason: 'task_sync_failed',
+      message: error.message,
+    };
+  }
+};
+
+// deleteTaskForScheduleCancellation
+// 是什么：取消日程后的任务删除包装函数。
+// 做什么：删除同一 `schedule_id` 对应任务，并把异常转换为可读状态返回。
+// 为什么：取消日程已成功后，接口应优先返回取消结果，再附带说明任务联动是否成功。
+const deleteTaskForScheduleCancellation = async (options = {}) => {
+  const traceId = normalizeText(options.traceId) || createTraceId();
+  const scheduleId = normalizeText(options.scheduleId);
+
+  try {
+    return await taskService.deleteTaskByScheduleId(scheduleId);
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'schedule.task_delete.error', {
+      scheduleId,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    return {
+      deleted: false,
+      reason: 'task_delete_failed',
+      message: error.message,
+    };
+  }
+};
+
 router.get('/tasks', authenticateToken, async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
@@ -376,6 +619,60 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
     res.status(500).json({
       code: 'TASK_KPI_ERROR',
       message: '获取任务 KPI 失败',
+    });
+  }
+});
+
+router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const now = new Date();
+    const rows = await allSql(`SELECT * FROM tasks`);
+    const contactRows = await allSql(
+      `SELECT user_id, name, position
+       FROM wecom_contact_users`
+    );
+    const currentUserId = normalizeText(req.user && req.user.userid);
+    const requestedScope = normalizeText(req.query.scope).toUpperCase();
+    const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
+    const taskScope = resolveTaskQueryScope({
+      currentUserId,
+      globalVerifiers,
+      requestedScope,
+    });
+    const scopedRows = taskScope.restrictToCurrentUser
+      ? rows.filter(
+          (item) =>
+            normalizeText(item.owner_userid) === currentUserId ||
+            normalizeText(item.executor_userid) === currentUserId ||
+            normalizeText(item.creator_userid) === currentUserId
+        )
+      : rows;
+    const teamStats = buildTaskTeamStats(scopedRows, contactRows, now);
+
+    logWithTrace(traceId, 'api', 'tasks.team_stats.success', {
+      userid: req.user && req.user.userid,
+      requestedScope,
+      resolvedScope: taskScope.resolvedScope,
+      restrictToCurrentUser: taskScope.restrictToCurrentUser,
+      userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
+      managerMemberCount: teamStats.summaries.manager.member_count,
+      executorMemberCount: teamStats.summaries.executor.member_count,
+    });
+
+    res.json({
+      team_stats: teamStats,
+    });
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'tasks.team_stats.error', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'TASK_TEAM_STATS_ERROR',
+      message: '获取团队统计失败',
     });
   }
 });
@@ -630,6 +927,40 @@ router.get('/users', authenticateToken, async (req, res) => {
       stack: error.stack,
     });
 
+    try {
+      const fallbackUsers = await listLocalContactUsers({
+        departmentId,
+        fetchChild,
+        status,
+      });
+
+      if (fallbackUsers.length > 0) {
+        logWithTrace(traceId, 'api', 'users.list.local_cache_fallback', {
+          departmentId,
+          fetchChild,
+          status,
+          userCount: fallbackUsers.length,
+        });
+
+        return res.status(200).json({
+          errcode: 0,
+          errmsg: 'ok',
+          userlist: fallbackUsers,
+          degraded: true,
+          source: 'local_cache',
+          degrade_reason: 'wecom_user_list_unavailable',
+        });
+      }
+    } catch (fallbackError) {
+      logWithTrace(traceId, 'api', 'users.list.local_cache_error', {
+        departmentId,
+        fetchChild,
+        status,
+        message: fallbackError.message,
+        stack: fallbackError.stack,
+      });
+    }
+
     res.status(500).json({
       code: 'USER_LIST_ERROR',
       message: '组织成员获取失败',
@@ -769,6 +1100,7 @@ router.post('/calendar/ensure', authenticateToken, async (req, res) => {
       userId,
       userName,
       source,
+      forceEnsure: true,
       traceId,
     });
 
@@ -974,7 +1306,25 @@ router.post('/schedule/create', authenticateToken, async (req, res) => {
       ? req.body.schedule
       : req.body || {};
     const result = await wecom.createSchedule(schedule);
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    const normalizedScheduleId = normalizeText(result && result.schedule_id);
+    const taskSync =
+      result && result.errcode === 0 && normalizedScheduleId
+        ? await syncTaskForScheduleMutation({
+            traceId,
+            scheduleId: normalizedScheduleId,
+            fallbackUserId: req.user && req.user.userid,
+            fallbackCalId: schedule && schedule.cal_id,
+            fallbackSchedule: buildFallbackSchedulePayload(schedule, normalizedScheduleId),
+          })
+        : {
+            synced: false,
+            reason: 'schedule_create_not_successful',
+          };
+
+    res.status(result && result.errcode === 0 ? 200 : 400).json({
+      ...(result || {}),
+      task_sync: taskSync,
+    });
   } catch (error) {
     logWithTrace(traceId, 'api', 'schedule.create.error', {
       message: error.message,
@@ -1037,7 +1387,23 @@ router.put('/schedule/:scheduleId', authenticateToken, async (req, res) => {
       op_mode: req.body && req.body.op_mode,
       op_start_time: req.body && req.body.op_start_time,
     });
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    const taskSync =
+      result && result.errcode === 0
+        ? await syncTaskForScheduleMutation({
+            traceId,
+            scheduleId,
+            fallbackUserId: req.user && req.user.userid,
+            fallbackCalId: schedulePayload.cal_id,
+            fallbackSchedule: buildFallbackSchedulePayload(schedulePayload, scheduleId),
+          })
+        : {
+            synced: false,
+            reason: 'schedule_update_not_successful',
+          };
+    res.status(result && result.errcode === 0 ? 200 : 400).json({
+      ...(result || {}),
+      task_sync: taskSync,
+    });
   } catch (error) {
     logWithTrace(traceId, 'api', 'schedule.update.error', {
       scheduleId,
@@ -1068,7 +1434,20 @@ router.delete('/schedule/:scheduleId', authenticateToken, async (req, res) => {
       op_mode: req.body && req.body.op_mode,
       op_start_time: req.body && req.body.op_start_time,
     });
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    const taskSync =
+      result && result.errcode === 0
+        ? await deleteTaskForScheduleCancellation({
+            traceId,
+            scheduleId,
+          })
+        : {
+            deleted: false,
+            reason: 'schedule_cancel_not_successful',
+          };
+    res.status(result && result.errcode === 0 ? 200 : 400).json({
+      ...(result || {}),
+      task_sync: taskSync,
+    });
   } catch (error) {
     logWithTrace(traceId, 'api', 'schedule.cancel.error', {
       scheduleId,
@@ -1097,7 +1476,21 @@ router.post('/schedule/:scheduleId/attendees/add', authenticateToken, async (req
 
   try {
     const result = await wecom.addScheduleAttendees(scheduleId, attendees);
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    const taskSync =
+      result && result.errcode === 0
+        ? await syncTaskForScheduleMutation({
+            traceId,
+            scheduleId,
+            fallbackUserId: req.user && req.user.userid,
+          })
+        : {
+            synced: false,
+            reason: 'schedule_add_attendees_not_successful',
+          };
+    res.status(result && result.errcode === 0 ? 200 : 400).json({
+      ...(result || {}),
+      task_sync: taskSync,
+    });
   } catch (error) {
     logWithTrace(traceId, 'api', 'schedule.attendees.add.error', {
       scheduleId,
@@ -1127,7 +1520,21 @@ router.post('/schedule/:scheduleId/attendees/del', authenticateToken, async (req
 
   try {
     const result = await wecom.removeScheduleAttendees(scheduleId, attendees);
-    res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
+    const taskSync =
+      result && result.errcode === 0
+        ? await syncTaskForScheduleMutation({
+            traceId,
+            scheduleId,
+            fallbackUserId: req.user && req.user.userid,
+          })
+        : {
+            synced: false,
+            reason: 'schedule_remove_attendees_not_successful',
+          };
+    res.status(result && result.errcode === 0 ? 200 : 400).json({
+      ...(result || {}),
+      task_sync: taskSync,
+    });
   } catch (error) {
     logWithTrace(traceId, 'api', 'schedule.attendees.remove.error', {
       scheduleId,
