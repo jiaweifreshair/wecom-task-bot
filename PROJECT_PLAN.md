@@ -264,11 +264,13 @@ CREATE TABLE tasks (
 git clone <repo-url>
 cd wecom-task-bot
 
-# 2. 配置环境变量
-cp backend/.env.example backend/.env
+# 2. 初始化 Linux 环境
+bash init-linux.sh
+
+# 3. 配置环境变量
 # 编辑 backend/.env 填入企微配置
 
-# 3. 一键启动
+# 4. 一键启动
 bash start.sh
 # 服务运行在 http://localhost:8080
 ```
@@ -279,11 +281,14 @@ bash start.sh
 ```bash
 # 1. 安装 Node.js 18+
 # 2. 上传代码到服务器
-# 3. 配置 backend/.env
-# 4. 启动服务
+# 3. 初始化 Linux 依赖
+bash init-linux.sh
+
+# 4. 配置 backend/.env
+# 5. 启动服务
 bash start.sh
 
-# 5. 配置 Nginx 反向代理 (可选)
+# 6. 配置 Nginx 反向代理 (可选)
 ```
 
 #### 方式二：Docker 部署 (待实现)

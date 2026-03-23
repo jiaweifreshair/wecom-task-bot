@@ -200,3 +200,51 @@ test('ensureUserCalendarForUser 在自动建历开关关闭时应直接跳过', 
   assert.equal(result.ensured, false);
   assert.equal(result.reason, 'auto_create_disabled');
 });
+
+test('ensureUserCalendarForUser 在显式确保场景下应忽略自动建历开关并创建日历', async () => {
+  process.env.USER_CALENDAR_MAP = '';
+  process.env.AUTO_CREATE_USER_CALENDAR_ON_LOGIN = 'false';
+
+  const upsertPayloads = [];
+  const store = {
+    upsertUserCalendarRow: async (payload) => {
+      upsertPayloads.push(payload);
+      return payload;
+    },
+    getUserCalendarRowByUserId: async () => null,
+  };
+  const wecomClient = {
+    getCalendarByIds: async () => {
+      throw new Error('显式确保首建分支不应校验旧日历');
+    },
+    createCalendar: async (options) => {
+      assert.equal(options.summary, '任务管家-孙七');
+      return {
+        errcode: 0,
+        errmsg: 'ok',
+        cal_id: 'cal-force-ensure-1',
+      };
+    },
+  };
+
+  const service = createUserCalendarService({
+    wecomClient,
+    store,
+  });
+
+  const result = await service.ensureUserCalendarForUser({
+    userId: 'sunqi',
+    userName: '孙七',
+    source: 'calendar_manage_page',
+    forceEnsure: true,
+    traceId: 'trace-force-ensure',
+  });
+
+  assert.equal(result.ensured, true);
+  assert.equal(result.created, true);
+  assert.equal(result.reason, 'calendar_created');
+  assert.equal(result.cal_id, 'cal-force-ensure-1');
+  assert.equal(upsertPayloads.length, 1);
+  assert.equal(upsertPayloads[0].user_id, 'sunqi');
+  assert.equal(upsertPayloads[0].cal_id, 'cal-force-ensure-1');
+});

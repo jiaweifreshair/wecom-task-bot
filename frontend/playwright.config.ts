@@ -7,6 +7,7 @@ import { defineConfig } from '@playwright/test';
 // 为什么：CI 与本地执行目录可能不同，路径写死会让 smoke test 在干净环境直接失效。
 const frontendDir = process.cwd();
 const backendDir = path.resolve(frontendDir, '../backend');
+const shellPath = process.env.SHELL || '/bin/zsh';
 // webServerCommand
 // 是什么：Playwright 内置 Web Server 启动命令。
 // 做什么：先构建前端，再加载后端环境变量并以隔离的 E2E 数据库启动服务。
@@ -39,7 +40,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: `bash -lc '${webServerCommand.replace(/'/g, `'\\''`)}'`,
+    command: `${shellPath} -lc '${webServerCommand.replace(/'/g, `'\\''`)}'`,
     url: 'http://127.0.0.1:8081',
     reuseExistingServer: false,
     timeout: 120_000,

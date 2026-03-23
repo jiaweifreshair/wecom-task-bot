@@ -409,12 +409,17 @@ class TaskService {
     }
   }
 
-  ensureTaskForVerify(task, userId) {
+  ensureTaskForVerify(task, userId, options = {}) {
     if (!task) {
       throw new TaskOperationError('TASK_NOT_FOUND', '任务不存在', 404);
     }
 
-    if (!canUserVerifyTask(task, userId, this.getGlobalVerifiers())) {
+    if (
+      !canUserVerifyTask(task, userId, {
+        globalVerifiers: this.getGlobalVerifiers(),
+        currentUserPlatformRole: options.currentUserPlatformRole,
+      })
+    ) {
       throw new TaskOperationError('TASK_VERIFY_FORBIDDEN', '当前用户无验收权限或状态不正确', 403);
     }
   }
@@ -459,10 +464,10 @@ class TaskService {
     };
   }
 
-  async verifyTask(wecomScheduleId, managerId, isApproved, rejectReason = '', source = 'wecom_card') {
+  async verifyTask(wecomScheduleId, managerId, isApproved, rejectReason = '', source = 'wecom_card', options = {}) {
     const traceId = createTraceId();
     const task = await this.getTaskByScheduleId(wecomScheduleId);
-    this.ensureTaskForVerify(task, managerId);
+    this.ensureTaskForVerify(task, managerId, options);
 
     const normalizedReason = normalizeText(rejectReason) || '领导驳回';
     const sql = isApproved
@@ -517,13 +522,13 @@ class TaskService {
     return this.submitForVerification(task.wecom_schedule_id, executorId, source);
   }
 
-  async verifyTaskById(taskId, managerId, isApproved, rejectReason = '', source = 'web') {
+  async verifyTaskById(taskId, managerId, isApproved, rejectReason = '', source = 'web', options = {}) {
     const task = await this.getTaskById(taskId);
     if (!task) {
       throw new TaskOperationError('TASK_NOT_FOUND', '任务不存在', 404);
     }
 
-    return this.verifyTask(task.wecom_schedule_id, managerId, isApproved, rejectReason, source);
+    return this.verifyTask(task.wecom_schedule_id, managerId, isApproved, rejectReason, source, options);
   }
 
   // createManualTask

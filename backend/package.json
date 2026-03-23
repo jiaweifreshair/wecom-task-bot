@@ -7,6 +7,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "test": "node --require ./test/setup-test-env.js --test --test-concurrency=1 test/*.test.js",
+    "db:init:mysql": "node scripts/init-mysql.js",
     "verify:real": "node scripts/verify-real-integration.js"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
     "express": "^4.18.2",
     "express-xml-bodyparser": "^0.4.1",
     "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.15.3",
     "node-cron": "^3.0.3",
     "sqlite3": "^5.1.6",
     "xml2js": "^0.6.2"

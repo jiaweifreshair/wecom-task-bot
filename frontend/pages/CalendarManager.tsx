@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarClock,
   CalendarDays,
@@ -8,23 +8,22 @@ import {
   PencilLine,
   RefreshCw,
   Search,
-  Sparkles,
   Trash2,
   UserRoundPlus,
 } from 'lucide-react';
 import {
   addScheduleAttendees,
   cancelSchedule,
-  createCalendar,
   createSchedule,
+  ensureUserCalendar,
   getCalendarMappings,
   getCalendarSchedules,
   getOrgUsers,
   removeScheduleAttendees,
-  updateCalendar,
   updateSchedule,
   type CalendarMappingRow,
   type OrgUserProfile,
+  type OrgUsersResponse,
   type WecomApiResult,
 } from '../api';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,6 +53,44 @@ const toDateKey = (value: Date) => {
   const month = String(value.getMonth() + 1).padStart(2, '0');
   const day = String(value.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// buildEventDayKeys
+// 是什么：日程覆盖日期键列表构建函数。
+// 做什么：把一个日程的开始/结束时间展开为其跨越的所有自然日 `YYYY-MM-DD` 键值。
+// 为什么：跨天日程不能只挂在开始日期，否则结束日和中间日期都无法在日历中正确展示。
+const buildEventDayKeys = (startUnixSeconds: number, endUnixSeconds: number) => {
+  const startDate = new Date(Number(startUnixSeconds || 0) * 1000);
+  const endDate = new Date(Number(endUnixSeconds || 0) * 1000);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return [] as string[];
+  }
+
+  const startDay = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+  const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  if (endDay.getTime() < startDay.getTime()) {
+    return [] as string[];
+  }
+
+  const result: string[] = [];
+  const cursor = new Date(startDay);
+  while (cursor.getTime() <= endDay.getTime() && result.length < 90) {
+    result.push(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+};
+
+// doesEventIntersectMonth
+// 是什么：日程与目标月份交集判断函数。
+// 做什么：判断某个日程是否覆盖目标月份内任意一天。
+// 为什么：跨月日程若仅按开始时间计数，会导致当前月份“可见日程数”与实际月历展示不一致。
+const doesEventIntersectMonth = (event: { startTime: number; endTime: number }, month: Date) => {
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1).getTime();
+  const nextMonthStart = new Date(month.getFullYear(), month.getMonth() + 1, 1).getTime();
+  const eventStart = Number(event.startTime || 0) * 1000;
+  const eventEnd = Number(event.endTime || 0) * 1000;
+  return eventStart < nextMonthStart && eventEnd >= monthStart;
 };
 
 // formatMonthTitle
@@ -148,6 +185,7 @@ interface MentionResolvedResult {
   internalUsers: Array<{ userid: string; displayName: string }>;
   externalNames: string[];
   rawMentionTokens: string[];
+  rawTextEntries: string[];
 }
 
 // extractMentionTokens
@@ -170,14 +208,24 @@ const extractMentionTokens = (value: string) => {
   return Array.from(tokenSet);
 };
 
-// resolveMentionKeyword
-// 是什么：当前输入提及关键字解析函数。
-// 做什么：解析输入末尾尚未完成的 `@关键词` 片段。
-// 为什么：用于动态过滤内部成员候选，实现“输入 @ 即可选择”的交互。
-const resolveMentionKeyword = (value: string) => {
-  const normalizedText = String(value || '');
-  const matched = normalizedText.match(/(?:^|[\s，,])@([^\s@，,。；;()]*)$/);
-  return String((matched && matched[1]) || '').trim();
+// extractPlainReminderEntries
+// 是什么：纯文本提醒对象提取函数。
+// 做什么：移除 `@提及` 片段后，将剩余文本按换行、逗号、顿号、分号拆分为提醒对象列表。
+// 为什么：让“其他人”支持直接文本填写，不再强制使用 `@姓名` 格式。
+const extractPlainReminderEntries = (value: string) => {
+  const normalizedText = String(value || '').trim();
+  if (!normalizedText) {
+    return [] as string[];
+  }
+
+  const textWithoutMentionTokens = normalizedText.replace(MENTION_TOKEN_REGEX, ' ');
+  const entrySet = new Set<string>();
+  textWithoutMentionTokens
+    .split(/[\n,，、;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => entrySet.add(item));
+  return Array.from(entrySet);
 };
 
 // buildMentionCandidates
@@ -228,6 +276,7 @@ const appendMentionToken = (text: string, token: string) => {
 // 为什么：内部成员需写入 `attendees`，外部对象需落库到说明文本实现提醒留痕。
 const resolveMentionTargets = (value: string, users: OrgUserProfile[]): MentionResolvedResult => {
   const tokens = extractMentionTokens(value);
+  const textEntries = extractPlainReminderEntries(value);
   const internalMap = new Map<string, { userid: string; displayName: string }>();
   const externalSet = new Set<string>();
 
@@ -246,8 +295,8 @@ const resolveMentionTargets = (value: string, users: OrgUserProfile[]): MentionR
     }
   });
 
-  tokens.forEach((token) => {
-    const normalizedToken = String(token || '').trim();
+  const classifyReminderEntry = (entry: string) => {
+    const normalizedToken = String(entry || '').trim();
     if (!normalizedToken) {
       return;
     }
@@ -304,13 +353,171 @@ const resolveMentionTargets = (value: string, users: OrgUserProfile[]): MentionR
     }
 
     externalSet.add(normalizedToken);
-  });
+  };
+
+  tokens.forEach((token) => classifyReminderEntry(token));
+  textEntries.forEach((entry) => classifyReminderEntry(entry));
 
   return {
     internalUsers: Array.from(internalMap.values()),
     externalNames: Array.from(externalSet),
     rawMentionTokens: tokens,
+    rawTextEntries: textEntries,
   };
+};
+
+// ReminderChipItem
+// 是什么：提醒对象展示标签模型。
+// 做什么：统一描述右侧表单中“已选同事/其他文本对象”的标签展示与移除元数据。
+// 为什么：点选同事与手工文本会共存在同一输入域，需要稳定的可视化结构承载。
+interface ReminderChipItem {
+  key: string;
+  label: string;
+  caption: string;
+  tone: 'internal' | 'external';
+  entryKind: 'mention' | 'text';
+  rawValue: string;
+}
+
+// buildReminderChipItems
+// 是什么：提醒对象标签构建函数。
+// 做什么：把提及词元与纯文本提醒对象转换为可渲染、可移除的标签列表。
+// 为什么：右侧交互需要明确展示“已选同事”和“其他对象”，减少用户对原始文本格式的理解负担。
+const buildReminderChipItems = (value: string, users: OrgUserProfile[]): ReminderChipItem[] => {
+  const usersByUserId = new Map<string, OrgUserProfile>();
+  const usersByName = new Map<string, OrgUserProfile[]>();
+
+  users.forEach((item) => {
+    const userId = String(item.userid || '').trim();
+    const name = String(item.name || '').trim();
+    if (userId) {
+      usersByUserId.set(userId.toLowerCase(), item);
+    }
+    if (name) {
+      const key = name.toLowerCase();
+      const existed = usersByName.get(key) || [];
+      usersByName.set(key, [...existed, item]);
+    }
+  });
+
+  const items: ReminderChipItem[] = [];
+  const seenKeys = new Set<string>();
+
+  const pushReminderChip = (rawValue: string, entryKind: 'mention' | 'text') => {
+    const normalizedValue = String(rawValue || '').trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    const lowerValue = normalizedValue.toLowerCase();
+    const bracketMatched = normalizedValue.match(/^(.+)\(([^()]+)\)$/);
+    if (bracketMatched) {
+      const displayName = String(bracketMatched[1] || '').trim();
+      const bracketUserId = String(bracketMatched[2] || '').trim();
+      const matchedUser = usersByUserId.get(bracketUserId.toLowerCase());
+      const key = `${entryKind}:${lowerValue}`;
+      if (seenKeys.has(key)) {
+        return;
+      }
+
+      seenKeys.add(key);
+      items.push({
+        key,
+        label:
+          String((matchedUser && matchedUser.name) || displayName || bracketUserId).trim() ||
+          normalizedValue,
+        caption: bracketUserId || '内部同事',
+        tone: 'internal',
+        entryKind,
+        rawValue: normalizedValue,
+      });
+      return;
+    }
+
+    const byUserId = usersByUserId.get(lowerValue);
+    if (byUserId) {
+      const userId = String(byUserId.userid || '').trim();
+      const key = `${entryKind}:${lowerValue}`;
+      if (seenKeys.has(key)) {
+        return;
+      }
+
+      seenKeys.add(key);
+      items.push({
+        key,
+        label: String(byUserId.name || userId).trim() || userId,
+        caption: userId,
+        tone: 'internal',
+        entryKind,
+        rawValue: normalizedValue,
+      });
+      return;
+    }
+
+    const byNameList = usersByName.get(lowerValue) || [];
+    if (byNameList.length === 1) {
+      const matchedUser = byNameList[0];
+      const userId = String(matchedUser.userid || '').trim();
+      const key = `${entryKind}:${lowerValue}`;
+      if (seenKeys.has(key)) {
+        return;
+      }
+
+      seenKeys.add(key);
+      items.push({
+        key,
+        label: String(matchedUser.name || userId).trim() || normalizedValue,
+        caption: userId || '内部同事',
+        tone: 'internal',
+        entryKind,
+        rawValue: normalizedValue,
+      });
+      return;
+    }
+
+    const key = `${entryKind}:${lowerValue}`;
+    if (seenKeys.has(key)) {
+      return;
+    }
+
+    seenKeys.add(key);
+    items.push({
+      key,
+      label: normalizedValue,
+      caption: entryKind === 'mention' ? '文本提及' : '手动文本',
+      tone: 'external',
+      entryKind,
+      rawValue: normalizedValue,
+    });
+  };
+
+  extractMentionTokens(value).forEach((item) => pushReminderChip(item, 'mention'));
+  extractPlainReminderEntries(value).forEach((item) => pushReminderChip(item, 'text'));
+  return items;
+};
+
+// removeReminderEntry
+// 是什么：提醒对象移除函数。
+// 做什么：从原始输入文本中删除指定的提及词元或纯文本对象，并重新生成规范化文本。
+// 为什么：右侧新交互需要支持点击标签直接移除对象，而不是要求用户手动改写整段输入。
+const removeReminderEntry = (value: string, rawValue: string, entryKind: 'mention' | 'text') => {
+  const normalizedRawValue = String(rawValue || '').trim().toLowerCase();
+  const nextMentionTokens = extractMentionTokens(value).filter((item) => {
+    if (entryKind !== 'mention') {
+      return true;
+    }
+    return String(item || '').trim().toLowerCase() !== normalizedRawValue;
+  });
+  const nextTextEntries = extractPlainReminderEntries(value).filter((item) => {
+    if (entryKind !== 'text') {
+      return true;
+    }
+    return String(item || '').trim().toLowerCase() !== normalizedRawValue;
+  });
+
+  const mentionPart = nextMentionTokens.map((item) => `@${item}`).join(' ');
+  const textPart = nextTextEntries.join('，');
+  return [mentionPart, textPart].filter(Boolean).join('\n');
 };
 
 // composeDescriptionWithExternalMentions
@@ -445,11 +652,66 @@ const resolveErrorMessage = (error: unknown) => {
     return friendlyMessage;
   }
 
+  const normalizedMessage = String(message || '').toLowerCase();
+  if (
+    normalizedMessage.includes('network error') ||
+    normalizedMessage.includes('failed to fetch') ||
+    normalizedMessage.includes('load failed')
+  ) {
+    return '组织成员服务暂时不可达，可能是企业微信网络、服务连接或代理配置异常。';
+  }
+
   const code = responseData && typeof responseData.code === 'string' ? responseData.code.trim() : '';
   if (code && (code.startsWith('CALENDAR_') || code.startsWith('SCHEDULE_'))) {
     return `${message}（${code}）`;
   }
   return String(message);
+};
+
+// normalizeOrgUserProfiles
+// 是什么：组织成员候选归一化函数。
+// 做什么：对成员列表按 `userid` 去重，并按姓名排序输出稳定结果。
+// 为什么：实时通讯录、本地快照和当前登录人回退可能同时进入页面，需要统一收口为一个候选集合。
+const normalizeOrgUserProfiles = (rows: OrgUserProfile[]) => {
+  const deduped = new Map<string, OrgUserProfile>();
+
+  rows.forEach((item) => {
+    const userId = String(item && item.userid ? item.userid : '').trim();
+    if (!userId) {
+      return;
+    }
+
+    deduped.set(userId, {
+      ...item,
+      userid: userId,
+      name: String(item && item.name ? item.name : '').trim() || userId,
+    });
+  });
+
+  return Array.from(deduped.values()).sort((left, right) => {
+    const leftLabel = String(left.name || left.userid || '');
+    const rightLabel = String(right.name || right.userid || '');
+    return leftLabel.localeCompare(rightLabel, 'zh-Hans-CN');
+  });
+};
+
+// buildOrgUsersDegradedHint
+// 是什么：组织成员降级提示文案生成函数。
+// 做什么：根据 `/api/users` 的降级标记生成可操作的页面提示。
+// 为什么：用户需要知道当前候选来自本地缓存，而不是把系统状态误判成彻底失败。
+const buildOrgUsersDegradedHint = (result: OrgUsersResponse, hasCandidates: boolean) => {
+  if (!result || !result.degraded) {
+    return '';
+  }
+
+  if (result.source === 'local_cache') {
+    if (hasCandidates) {
+      return '当前企业微信通讯录暂不可用，已回退到本地通讯录快照，候选成员可能略有延迟。';
+    }
+    return '当前企业微信通讯录暂不可用，本地通讯录快照也为空，请先手工输入联系人。';
+  }
+
+  return '当前组织成员列表已进入降级模式，请优先使用手工输入完成排期。';
 };
 
 // CalendarBoardEvent
@@ -465,6 +727,8 @@ interface CalendarBoardEvent {
   startTime: number;
   endTime: number;
   attendeesCount: number;
+  attendeeUserIds: string[];
+  ownerUserId: string;
   source: string;
 }
 
@@ -478,16 +742,6 @@ interface OperationRecord {
   status: 'success' | 'error' | 'info';
   message: string;
   createdAt: string;
-}
-
-// PersonalCalendarForm
-// 是什么：个人日历维护表单模型。
-// 做什么：承载“我的日历”更新字段。
-// 为什么：避免页面直接暴露接口字段名称与系统 ID。
-interface PersonalCalendarForm {
-  summary: string;
-  color: string;
-  description: string;
 }
 
 // ScheduleComposerState
@@ -514,12 +768,6 @@ interface ScheduleEditorState {
   endAt: string;
 }
 
-// ActionPanelTab
-// 是什么：右侧操作面板标签类型。
-// 做什么：约束可切换分区范围。
-// 为什么：避免魔法字符串散落，提高可维护性。
-type ActionPanelTab = 'CALENDAR' | 'SCHEDULE' | 'ATTENDEE' | 'RESULT';
-
 // mapResultToBoardEvents
 // 是什么：接口结果到月视图事件的映射函数。
 // 做什么：将企微日程结构转换为统一事件模型。
@@ -527,6 +775,7 @@ type ActionPanelTab = 'CALENDAR' | 'SCHEDULE' | 'ATTENDEE' | 'RESULT';
 const mapResultToBoardEvents = (
   result: unknown,
   fallbackCalId = '',
+  fallbackOwnerUserId = '',
   sourceTag = 'api_fetch'
 ): CalendarBoardEvent[] => {
   const scheduleRecords = extractScheduleRecords(result);
@@ -543,6 +792,16 @@ const mapResultToBoardEvents = (
       const startTime = parseUnixFromUnknown(source.start_time || rawItem.start_time);
       const endTime = parseUnixFromUnknown(source.end_time || rawItem.end_time);
       const attendees = Array.isArray(source.attendees) ? source.attendees : [];
+      const attendeeUserIds = Array.from(
+        new Set(
+          attendees
+            .map((item) => String((toRecord(item).userid || item || '')).trim())
+            .filter(Boolean)
+        )
+      );
+      const ownerUserId = String(
+        toRecord(source.organizer).userid || source.organizer || fallbackOwnerUserId || ''
+      ).trim();
 
       if (!scheduleId || !startTime || !endTime) {
         return null;
@@ -557,6 +816,8 @@ const mapResultToBoardEvents = (
         startTime,
         endTime,
         attendeesCount: attendees.length,
+        attendeeUserIds,
+        ownerUserId,
         source: sourceTag,
       };
     })
@@ -574,18 +835,135 @@ const mergeBoardEvents = (currentEvents: CalendarBoardEvent[], incomingEvents: C
   return Array.from(merged.values()).sort((a, b) => a.startTime - b.startTime);
 };
 
+// replaceBoardEventsByCalendarId
+// 是什么：指定日历事件替换函数。
+// 做什么：用远端最新快照替换目标日历的本地事件，同时保留其他日历事件。
+// 为什么：页面重挂载或手动刷新后，应以当前日历的服务端数据为准，避免旧内存数据残留或丢失。
+const replaceBoardEventsByCalendarId = (
+  currentEvents: CalendarBoardEvent[],
+  calId: string,
+  incomingEvents: CalendarBoardEvent[]
+) => {
+  const normalizedCalId = String(calId || '').trim();
+  if (!normalizedCalId) {
+    return mergeBoardEvents(currentEvents, incomingEvents);
+  }
+
+  const eventsFromOtherCalendars = currentEvents.filter(
+    (item) => String(item.calId || '').trim() !== normalizedCalId
+  );
+  return mergeBoardEvents(eventsFromOtherCalendars, incomingEvents);
+};
+
+// buildComparableParticipantUserIds
+// 是什么：冲突校验参与人集合构建函数。
+// 做什么：优先使用内部参与人列表，缺失时回退到日历归属人/组织者，输出去重后的账号集合。
+// 为什么：用户允许“不同负责人同时间重叠”，冲突校验不能再只看时间段本身。
+const buildComparableParticipantUserIds = (participantUserIds: string[] = [], fallbackUserId = '') => {
+  const normalizedIds = Array.from(
+    new Set(
+      (Array.isArray(participantUserIds) ? participantUserIds : [])
+        .map((item) => String(item || '').trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
+  if (normalizedIds.length > 0) {
+    return normalizedIds;
+  }
+
+  const normalizedFallbackUserId = String(fallbackUserId || '').trim().toLowerCase();
+  return normalizedFallbackUserId ? [normalizedFallbackUserId] : [];
+};
+
+// canUserViewCalendarEvent
+// 是什么：日历事件可见性判定函数。
+// 做什么：管理员可见全部事件，普通成员仅可见“自己创建”或“需要自己执行/参与”的事件。
+// 为什么：日历页需要按登录身份裁剪可见范围，避免成员看到与自己无关的排期。
+const canUserViewCalendarEvent = (
+  event: Pick<CalendarBoardEvent, 'attendeeUserIds' | 'ownerUserId'>,
+  options: { currentUserId: string; isAdmin: boolean }
+) => {
+  if (options.isAdmin) {
+    return true;
+  }
+
+  const normalizedCurrentUserId = String(options.currentUserId || '').trim().toLowerCase();
+  if (!normalizedCurrentUserId) {
+    return false;
+  }
+
+  const comparableParticipantUserIds = buildComparableParticipantUserIds(
+    event.attendeeUserIds,
+    event.ownerUserId
+  );
+  return comparableParticipantUserIds.includes(normalizedCurrentUserId);
+};
+
+// canUserMutateCalendarEvent
+// 是什么：日历事件编辑/删除权限判定函数。
+// 做什么：管理员可修改全部事件，普通成员仅可修改自己创建的事件。
+// 为什么：成员虽然能看到分配给自己的日程，但不能改动他人创建的执行安排。
+const canUserMutateCalendarEvent = (
+  event: Pick<CalendarBoardEvent, 'ownerUserId'>,
+  options: { currentUserId: string; isAdmin: boolean }
+) => {
+  if (options.isAdmin) {
+    return true;
+  }
+
+  const normalizedCurrentUserId = String(options.currentUserId || '').trim().toLowerCase();
+  const normalizedOwnerUserId = String(event.ownerUserId || '').trim().toLowerCase();
+  if (!normalizedCurrentUserId || !normalizedOwnerUserId) {
+    return false;
+  }
+
+  return normalizedCurrentUserId === normalizedOwnerUserId;
+};
+
+// hasInvalidDateTimeRange
+// 是什么：日期时间区间合法性判定函数。
+// 做什么：在开始/结束时间都已填写后，校验结束时间是否严格晚于开始时间。
+// 为什么：仅靠提交时兜底提示不够，界面层也需要即时阻止无效区间继续提交。
+const hasInvalidDateTimeRange = (startAt: string, endAt: string) => {
+  const normalizedStartAt = String(startAt || '').trim();
+  const normalizedEndAt = String(endAt || '').trim();
+  if (!normalizedStartAt || !normalizedEndAt) {
+    return false;
+  }
+
+  const startTime = toUnixSeconds(normalizedStartAt);
+  const endTime = toUnixSeconds(normalizedEndAt);
+  if (!startTime || !endTime) {
+    return true;
+  }
+
+  return endTime <= startTime;
+};
+
 // findConflictingEvent
 // 是什么：时间冲突检测函数。
 // 做什么：在同一日历事件集合内检测与目标时间段重叠的首个事件。
 // 为什么：创建/编辑日程前需阻止时间冲突，避免同一用户日历重复占用时段。
 const findConflictingEvent = (
   events: CalendarBoardEvent[],
-  options: { calId: string; startTime: number; endTime: number; excludeEventId?: string }
+  options: {
+    calId: string;
+    startTime: number;
+    endTime: number;
+    excludeEventId?: string;
+    participantUserIds?: string[];
+    fallbackOwnerUserId?: string;
+  }
 ) => {
   const targetCalId = String(options.calId || '').trim();
   const targetStartTime = Number(options.startTime || 0);
   const targetEndTime = Number(options.endTime || 0);
   const excludeEventId = String(options.excludeEventId || '').trim();
+  const targetParticipantUserIds = buildComparableParticipantUserIds(
+    options.participantUserIds,
+    options.fallbackOwnerUserId
+  );
 
   if (!targetCalId || !targetStartTime || !targetEndTime || targetEndTime <= targetStartTime) {
     return null;
@@ -605,21 +983,218 @@ const findConflictingEvent = (
       // 做什么：采用 `[start,end)` 规则判断两个区间是否交叠。
       // 为什么：避免相邻边界被误判冲突，同时兼容日程分钟级编辑。
       const overlap = targetStartTime < event.endTime && event.startTime < targetEndTime;
-      return overlap;
+      if (!overlap) {
+        return false;
+      }
+
+      const existingParticipantUserIds = buildComparableParticipantUserIds(
+        event.attendeeUserIds,
+        event.ownerUserId
+      );
+      if (targetParticipantUserIds.length > 0 && existingParticipantUserIds.length > 0) {
+        const existingParticipantSet = new Set(existingParticipantUserIds);
+        const hasSharedParticipant = targetParticipantUserIds.some((item) => existingParticipantSet.has(item));
+        if (!hasSharedParticipant) {
+          return false;
+        }
+      }
+
+      return true;
     }) || null
   );
 };
 
-const CalendarManager: React.FC = () => {
+// ReminderInputPanelProps
+// 是什么：提醒对象输入面板属性模型。
+// 做什么：统一描述“选择同事 + 文本补充”交互所需的状态、数据和事件回调。
+// 为什么：创建态和编辑态交互一致，抽成复用面板可避免两套 UI 漂移。
+interface ReminderInputPanelProps {
+  title: string;
+  helperText: string;
+  searchKeyword: string;
+  onSearchKeywordChange: (value: string) => void;
+  rawValue: string;
+  onRawValueChange: (value: string) => void;
+  chips: ReminderChipItem[];
+  mentionResult: MentionResolvedResult;
+  candidates: OrgUserProfile[];
+  onPickMember: (member: OrgUserProfile) => void;
+  onRemoveChip: (chip: ReminderChipItem) => void;
+  disabled?: boolean;
+  loading: boolean;
+  orgUsersLoading: boolean;
+  orgUsersErrorHint: string;
+}
+
+// ReminderInputPanel
+// 是什么：提醒对象混合输入面板组件。
+// 做什么：提供“搜索并点选同事”与“手工文本填写其他对象”的组合交互，同时显示已选摘要。
+// 为什么：把复杂的 `@提及` 心智改成可视化操作，减少培训成本和输入错误。
+const ReminderInputPanel: React.FC<ReminderInputPanelProps> = ({
+  title,
+  helperText,
+  searchKeyword,
+  onSearchKeywordChange,
+  rawValue,
+  onRawValueChange,
+  chips,
+  mentionResult,
+  candidates,
+  onPickMember,
+  onRemoveChip,
+  disabled = false,
+  loading,
+  orgUsersLoading,
+  orgUsersErrorHint,
+}) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 via-white to-white p-3 shadow-[0_16px_30px_-24px_rgba(15,23,42,0.7)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-900">{title}</p>
+          <p className="mt-1 text-[11px] leading-5 text-slate-500">{helperText}</p>
+        </div>
+        <div className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+          内部 {mentionResult.internalUsers.length} · 其他 {mentionResult.externalNames.length}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">已加入对象</p>
+        {chips.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] text-slate-400">
+            还没有跟进对象。点选同事或在下方直接输入其他联系人。
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {chips.map((chip) => (
+              <div
+                key={chip.key}
+                className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-[11px] ${
+                  chip.tone === 'internal'
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                }`}
+              >
+                <span className="font-semibold">{chip.label}</span>
+                <span className="text-[10px] opacity-80">{chip.caption}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemoveChip(chip)}
+                  className="rounded-full border border-current/20 px-1.5 py-0.5 text-[10px] transition hover:bg-white/60"
+                  disabled={disabled || loading}
+                >
+                  移除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center gap-2">
+          <UserRoundPlus className="h-4 w-4 text-blue-600" />
+          <p className="text-[11px] font-semibold text-slate-700">选择跟进同事</p>
+        </div>
+        <div className="relative">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              value={searchKeyword}
+              onChange={(event) => onSearchKeywordChange(event.target.value)}
+              onFocus={() => setDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+              placeholder={orgUsersLoading ? '正在加载组织成员...' : '搜索姓名、账号或岗位...'}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+              disabled={disabled || loading}
+            />
+          </label>
+          {dropdownOpen && (
+            <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+              {candidates.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto">
+                  {candidates.map((member) => {
+                    const userId = String(member.userid || '').trim();
+                    if (!userId) return null;
+                    const displayName = String(member.name || userId).trim() || userId;
+                    const position = String(member.position || '').trim();
+                    return (
+                      <button
+                        key={`reminder-candidate-${userId}`}
+                        type="button"
+                        onMouseDown={() => {
+                          onPickMember(member);
+                          onSearchKeywordChange('');
+                          setDropdownOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-blue-50 disabled:opacity-60"
+                        disabled={disabled || loading}
+                      >
+                        <span className="text-sm font-medium text-slate-800">{displayName}</span>
+                        <span className="text-xs text-slate-400">
+                          {userId}
+                          {position ? ` · ${position}` : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="px-3 py-3 text-[11px] text-slate-400">
+                  {orgUsersLoading ? '正在加载候选成员...' : searchKeyword ? '没有找到匹配的同事' : '没有更多可加入的同事'}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {orgUsersErrorHint ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
+            {orgUsersErrorHint}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center gap-2">
+          <PencilLine className="h-4 w-4 text-slate-500" />
+          <p className="text-[11px] font-semibold text-slate-700">其他人 / 文本补充</p>
+        </div>
+        <textarea
+          value={rawValue}
+          onChange={(event) => onRawValueChange(event.target.value)}
+          placeholder="@张三(zhangsan)\n客户王总，供应商李工"
+          className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+          disabled={disabled || loading}
+        />
+        <p className="text-[10px] leading-5 text-slate-400">
+          内部同事可直接点选；其他人支持直接输入文本，建议用换行、逗号或顿号分隔。若填写 `@姓名(userid)`，系统会优先按企业账号识别。
+        </p>
+      </div>
+    </div>
+  );
+};
+
+interface CalendarManagerProps {
+  onTaskDataChanged?: () => Promise<void> | void;
+}
+
+const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [mappings, setMappings] = useState<CalendarMappingRow[]>([]);
+  // mappingsLoaded
+  // 是什么：日历映射首次加载完成标记。
+  // 做什么：区分“尚未拉取映射”和“已确认当前用户暂无映射”两种状态。
+  // 为什么：只有在确认当前没有映射后，页面才应自动触发个人日历确保，避免把已有映射误判成缺失。
+  const [mappingsLoaded, setMappingsLoaded] = useState(false);
   const [events, setEvents] = useState<CalendarBoardEvent[]>([]);
   const [eventKeyword, setEventKeyword] = useState('');
   const [activeCalId, setActiveCalId] = useState('');
-  const [actionTab, setActionTab] = useState<ActionPanelTab>('CALENDAR');
   const [selectedEventId, setSelectedEventId] = useState('');
   const [latestOperation, setLatestOperation] = useState<OperationRecord | null>(null);
   const [operationHistory, setOperationHistory] = useState<OperationRecord[]>([]);
@@ -630,6 +1205,16 @@ const CalendarManager: React.FC = () => {
   // 做什么：承载参与人面板中的友好错误文案。
   // 为什么：成员为空时需要区分“筛选无结果”和“接口不可用”。
   const [orgUsersErrorHint, setOrgUsersErrorHint] = useState('');
+  // miniCalendarCollapsed
+  // 是什么：迷你月历折叠状态。
+  // 做什么：控制桌面端辅助月历是否仅保留标题栏。
+  // 为什么：用户需要左右分屏主视图，同时又希望迷你月历可以按需收起减少占位。
+  const [miniCalendarCollapsed, setMiniCalendarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.innerWidth < 1280;
+  });
   const [attendeeKeyword, setAttendeeKeyword] = useState('');
   const [selectedAttendeeUserIds, setSelectedAttendeeUserIds] = useState<string[]>([]);
   // scheduleComposerMentions
@@ -637,11 +1222,41 @@ const CalendarManager: React.FC = () => {
   // 做什么：保存用户在创建区输入的 `@姓名` / `@姓名(userid)` 文本。
   // 为什么：创建时需直接带出参与人提醒，避免再切到“参与人”菜单补操作。
   const [scheduleComposerMentions, setScheduleComposerMentions] = useState('');
+  // scheduleComposerMentionKeyword
+  // 是什么：创建区同事搜索关键字状态。
+  // 做什么：用于过滤“跟进同事”候选列表，不直接写入提交内容。
+  // 为什么：让用户通过搜索点选同事，而不是先理解 `@提及` 语法。
+  const [scheduleComposerMentionKeyword, setScheduleComposerMentionKeyword] = useState('');
   // scheduleEditorMentions
   // 是什么：编辑日程提及输入状态。
   // 做什么：保存用户在编辑区输入的提及对象文本。
   // 为什么：支持更新日程时同步维护提醒对象，减少重复录入。
   const [scheduleEditorMentions, setScheduleEditorMentions] = useState('');
+  // scheduleEditorMentionKeyword
+  // 是什么：编辑区同事搜索关键字状态。
+  // 做什么：用于过滤编辑态下的跟进同事候选列表。
+  // 为什么：编辑现有日程时也应保留和创建态一致的低门槛选择体验。
+  const [scheduleEditorMentionKeyword, setScheduleEditorMentionKeyword] = useState('');
+  // ensuringCalendarPromiseRef
+  // 是什么：个人日历确保中的共享 Promise 引用。
+  // 做什么：串行化“页面初始化 / 刷新日程 / 创建日程”对同一确保流程的并发调用。
+  // 为什么：避免同一用户在短时间内重复调用确保接口，导致重复建历或状态抖动。
+  const ensuringCalendarPromiseRef = useRef<Promise<string> | null>(null);
+  // hydratedCalendarIdsRef
+  // 是什么：已完成日程首轮同步的日历ID集合。
+  // 做什么：记录当前挂载周期内哪些日历已经自动回拉过日程。
+  // 为什么：切页返回时需要自动恢复事件，但不能在每次渲染或状态波动时重复请求接口。
+  const hydratedCalendarIdsRef = useRef<Set<string>>(new Set());
+  // hydratingSchedulesPromiseMapRef
+  // 是什么：按日历维度缓存中的日程同步 Promise 映射。
+  // 做什么：合并同一日历的并发回拉请求，让自动同步和手动刷新复用同一个请求。
+  // 为什么：避免短时间内重复拉取同一日历日程，导致界面抖动和重复反馈。
+  const hydratingSchedulesPromiseMapRef = useRef<Map<string, Promise<CalendarBoardEvent[]>>>(new Map());
+  // scheduleFetchSequenceMapRef
+  // 是什么：按日历记录的日程快照请求序号映射。
+  // 做什么：为每次远端快照拉取生成递增序号，只允许最新请求结果写回页面。
+  // 为什么：自动回拉、冲突校验预取和手动刷新可能并发返回，较早的旧结果不应覆盖较新的本地状态。
+  const scheduleFetchSequenceMapRef = useRef<Map<string, number>>(new Map());
 
   const initialMonth = useMemo(() => {
     const now = new Date();
@@ -649,12 +1264,6 @@ const CalendarManager: React.FC = () => {
   }, []);
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [selectedDayKey, setSelectedDayKey] = useState(() => toDateKey(new Date()));
-
-  const [calendarForm, setCalendarForm] = useState<PersonalCalendarForm>({
-    summary: '',
-    color: '#1D4ED8',
-    description: '由任务管家页面创建',
-  });
 
   const [scheduleComposer, setScheduleComposer] = useState<ScheduleComposerState>(() => {
     const defaults = buildDefaultRangeByDayKey(toDateKey(new Date()));
@@ -692,13 +1301,28 @@ const CalendarManager: React.FC = () => {
       ''
   ).trim();
   const currentUserName = String(user?.name || '').trim();
+  const currentUserIsAdmin = Boolean(user?.isAdmin);
   // canManageCalendar
   // 是什么：日历维护能力开关。
-  // 做什么：仅当角色为 `MANAGER` 时显示“日历维护/映射”模块。
-  // 为什么：普通执行人只需关注日程执行，不应暴露日历绑定与维护细节。
-  const canManageCalendar = String(user?.role || '')
-    .trim()
-    .toUpperCase() === 'MANAGER';
+  // 做什么：仅当当前用户具备管理员权限时显示“日历维护/映射”模块。
+  // 为什么：执行对象只能操作自己的日程，不应暴露系统级绑定与维护能力。
+  const canManageCalendar = currentUserIsAdmin;
+  // currentUserFallbackOrgUsers
+  // 是什么：当前登录人候选回退列表。
+  // 做什么：在通讯录接口与本地快照都不可用时，至少保留当前登录账号供页面点选。
+  // 为什么：避免“跟进对象”区域完全无候选，导致用户被迫中断排期流程。
+  const currentUserFallbackOrgUsers = useMemo(() => {
+    if (!resolvedCurrentUserId) {
+      return [] as OrgUserProfile[];
+    }
+
+    return [
+      {
+        userid: resolvedCurrentUserId,
+        name: currentUserName || resolvedCurrentUserId,
+      },
+    ];
+  }, [currentUserName, resolvedCurrentUserId]);
 
   const currentUserMapping = useMemo(() => {
     if (!resolvedCurrentUserId) {
@@ -707,24 +1331,38 @@ const CalendarManager: React.FC = () => {
     return mappings.find((row) => String(row.user_id || '').trim() === resolvedCurrentUserId) || null;
   }, [mappings, resolvedCurrentUserId]);
 
+  // visibleEvents
+  // 是什么：当前用户可见事件集合。
+  // 做什么：管理员保留全量事件，普通成员只保留自己创建或需要自己执行的事件。
+  // 为什么：页面展示层必须与权限模型一致，避免把无关日程暴露给执行对象。
+  const visibleEvents = useMemo(() => {
+    return events.filter((event) =>
+      canUserViewCalendarEvent(event, {
+        currentUserId: resolvedCurrentUserId,
+        isAdmin: currentUserIsAdmin,
+      })
+    );
+  }, [currentUserIsAdmin, events, resolvedCurrentUserId]);
+
   const filteredEvents = useMemo(() => {
     const keyword = eventKeyword.trim().toLowerCase();
     if (!keyword) {
-      return events;
+      return visibleEvents;
     }
-    return events.filter((event) => {
+    return visibleEvents.filter((event) => {
       const target = `${event.summary} ${event.description} ${event.location}`.toLowerCase();
       return target.includes(keyword);
     });
-  }, [events, eventKeyword]);
+  }, [eventKeyword, visibleEvents]);
 
   const eventMapByDay = useMemo(() => {
     const grouped = new Map<string, CalendarBoardEvent[]>();
     filteredEvents.forEach((event) => {
-      const key = toDateKey(new Date(event.startTime * 1000));
-      const list = grouped.get(key) || [];
-      list.push(event);
-      grouped.set(key, list);
+      buildEventDayKeys(event.startTime, event.endTime).forEach((key) => {
+        const list = grouped.get(key) || [];
+        list.push(event);
+        grouped.set(key, list);
+      });
     });
     grouped.forEach((list) => list.sort((a, b) => a.startTime - b.startTime));
     return grouped;
@@ -735,30 +1373,61 @@ const CalendarManager: React.FC = () => {
   }, [eventMapByDay, selectedDayKey]);
 
   const selectedEvent = useMemo(() => {
-    return events.find((item) => item.id === selectedEventId) || null;
-  }, [events, selectedEventId]);
+    return visibleEvents.find((item) => item.id === selectedEventId) || null;
+  }, [selectedEventId, visibleEvents]);
 
-  const scheduleTabs = useMemo(() => {
-    const baseTabs: Array<{ key: ActionPanelTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-      { key: 'SCHEDULE', label: '日程', icon: CalendarClock },
-      { key: 'ATTENDEE', label: '参与人', icon: UserRoundPlus },
-      { key: 'RESULT', label: '结果', icon: Sparkles },
-    ];
-
-    if (canManageCalendar) {
-      return [{ key: 'CALENDAR', label: '日历', icon: CalendarDays }, ...baseTabs];
+  // canMutateSelectedEvent
+  // 是什么：当前选中事件的可编辑状态。
+  // 做什么：根据管理员身份与事件创建人，计算当前选中事件是否允许编辑、删除和维护参与人。
+  // 为什么：同一日历中可见不代表可改，界面需要给出明确的只读边界。
+  const canMutateSelectedEvent = useMemo(() => {
+    if (!selectedEvent) {
+      return false;
     }
 
-    return baseTabs;
-  }, [canManageCalendar]);
+    return canUserMutateCalendarEvent(selectedEvent, {
+      currentUserId: resolvedCurrentUserId,
+      isAdmin: currentUserIsAdmin,
+    });
+  }, [currentUserIsAdmin, resolvedCurrentUserId, selectedEvent]);
+
+  // selectedEventReadonlyHint
+  // 是什么：当前选中事件只读提示文案。
+  // 做什么：当成员选中他人创建的执行日程时，输出统一只读提示。
+  // 为什么：按钮禁用之外还需要告诉用户“为什么不能改”。
+  const selectedEventReadonlyHint = useMemo(() => {
+    if (!selectedEvent || canMutateSelectedEvent) {
+      return '';
+    }
+    return '当前日程由其他人创建，你可以查看执行安排，但不能编辑或删除。';
+  }, [canMutateSelectedEvent, selectedEvent]);
+
+  // composerHasInvalidTimeRange / editorHasInvalidTimeRange
+  // 是什么：创建态与编辑态时间区间校验结果。
+  // 做什么：实时判断开始/结束时间是否满足“结束严格晚于开始”。
+  // 为什么：提交按钮和输入区提示需要即时响应用户输入，而不是等到提交时才报错。
+  const composerHasInvalidTimeRange = useMemo(
+    () => hasInvalidDateTimeRange(scheduleComposer.startAt, scheduleComposer.endAt),
+    [scheduleComposer.endAt, scheduleComposer.startAt]
+  );
+  const editorHasInvalidTimeRange = useMemo(
+    () => hasInvalidDateTimeRange(scheduleEditor.startAt, scheduleEditor.endAt),
+    [scheduleEditor.endAt, scheduleEditor.startAt]
+  );
+
+  useEffect(() => {
+    if (!selectedEventId) {
+      return;
+    }
+    if (selectedEvent) {
+      return;
+    }
+
+    setSelectedEventId('');
+  }, [selectedEvent, selectedEventId]);
 
   const monthlyVisibleCount = useMemo(() => {
-    const currentYear = viewMonth.getFullYear();
-    const currentMonth = viewMonth.getMonth();
-    return filteredEvents.filter((event) => {
-      const date = new Date(event.startTime * 1000);
-      return date.getFullYear() === currentYear && date.getMonth() === currentMonth;
-    }).length;
+    return filteredEvents.filter((event) => doesEventIntersectMonth(event, viewMonth)).length;
   }, [filteredEvents, viewMonth]);
 
   // filteredOrgUsers
@@ -797,27 +1466,51 @@ const CalendarManager: React.FC = () => {
     [scheduleEditorMentions, orgUsers]
   );
 
+  // composerReminderChipItems
+  // 是什么：创建区提醒对象标签列表。
+  // 做什么：把当前创建区内已选同事与文本对象转换为可视化标签。
+  // 为什么：用户需要直观看到“已经加入哪些跟进对象”，降低误操作概率。
+  const composerReminderChipItems = useMemo(
+    () => buildReminderChipItems(scheduleComposerMentions, orgUsers),
+    [scheduleComposerMentions, orgUsers]
+  );
+
+  // editorReminderChipItems
+  // 是什么：编辑区提醒对象标签列表。
+  // 做什么：把当前编辑区提醒对象转换为可视化标签。
+  // 为什么：编辑时经常要删改个别对象，标签化比纯文本更易操作。
+  const editorReminderChipItems = useMemo(
+    () => buildReminderChipItems(scheduleEditorMentions, orgUsers),
+    [scheduleEditorMentions, orgUsers]
+  );
+
   // composerMentionCandidates
   // 是什么：创建区提及候选成员列表。
-  // 做什么：基于输入末尾 `@关键词` 过滤组织成员候选。
-  // 为什么：提供“输入 @ 即可点选内部成员”的快速交互。
+  // 做什么：基于搜索关键字过滤未加入的组织成员候选。
+  // 为什么：支持“先搜再点”的跟进同事选择交互，不再依赖输入 `@`。
   const composerMentionCandidates = useMemo(() => {
-    const keyword = resolveMentionKeyword(scheduleComposerMentions);
-    return keyword || String(scheduleComposerMentions || '').includes('@')
-      ? buildMentionCandidates(orgUsers, keyword)
-      : [];
-  }, [orgUsers, scheduleComposerMentions]);
+    const selectedUserIds = new Set(
+      composerMentionResult.internalUsers.map((item) => String(item.userid || '').trim().toLowerCase())
+    );
+    const availableUsers = orgUsers.filter(
+      (item) => !selectedUserIds.has(String(item.userid || '').trim().toLowerCase())
+    );
+    return buildMentionCandidates(availableUsers, scheduleComposerMentionKeyword);
+  }, [orgUsers, composerMentionResult, scheduleComposerMentionKeyword]);
 
   // editorMentionCandidates
   // 是什么：编辑区提及候选成员列表。
-  // 做什么：基于输入末尾 `@关键词` 过滤组织成员候选。
-  // 为什么：保证编辑流程和创建流程的提及体验一致。
+  // 做什么：基于搜索关键字过滤未加入的组织成员候选。
+  // 为什么：保证编辑流程和创建流程拥有一致的“搜人再加入”体验。
   const editorMentionCandidates = useMemo(() => {
-    const keyword = resolveMentionKeyword(scheduleEditorMentions);
-    return keyword || String(scheduleEditorMentions || '').includes('@')
-      ? buildMentionCandidates(orgUsers, keyword)
-      : [];
-  }, [orgUsers, scheduleEditorMentions]);
+    const selectedUserIds = new Set(
+      editorMentionResult.internalUsers.map((item) => String(item.userid || '').trim().toLowerCase())
+    );
+    const availableUsers = orgUsers.filter(
+      (item) => !selectedUserIds.has(String(item.userid || '').trim().toLowerCase())
+    );
+    return buildMentionCandidates(availableUsers, scheduleEditorMentionKeyword);
+  }, [orgUsers, editorMentionResult, scheduleEditorMentionKeyword]);
 
   // appendComposerMentionUser
   // 是什么：创建区成员提及追加函数。
@@ -830,6 +1523,7 @@ const CalendarManager: React.FC = () => {
     }
     const displayName = String(member.name || userId).trim() || userId;
     setScheduleComposerMentions((prev) => appendMentionToken(prev, `${displayName}(${userId})`));
+    setScheduleComposerMentionKeyword('');
   }, []);
 
   // appendEditorMentionUser
@@ -843,6 +1537,23 @@ const CalendarManager: React.FC = () => {
     }
     const displayName = String(member.name || userId).trim() || userId;
     setScheduleEditorMentions((prev) => appendMentionToken(prev, `${displayName}(${userId})`));
+    setScheduleEditorMentionKeyword('');
+  }, []);
+
+  // removeComposerReminderChip
+  // 是什么：创建区提醒对象移除函数。
+  // 做什么：点击标签后从创建区原始输入中移除对应对象。
+  // 为什么：比手工回删整段文本更快，也更不容易误删其他对象。
+  const removeComposerReminderChip = useCallback((chip: ReminderChipItem) => {
+    setScheduleComposerMentions((prev) => removeReminderEntry(prev, chip.rawValue, chip.entryKind));
+  }, []);
+
+  // removeEditorReminderChip
+  // 是什么：编辑区提醒对象移除函数。
+  // 做什么：点击标签后从编辑区原始输入中移除对应对象。
+  // 为什么：编辑既有日程时经常是微调单个对象，单点移除更符合实际操作路径。
+  const removeEditorReminderChip = useCallback((chip: ReminderChipItem) => {
+    setScheduleEditorMentions((prev) => removeReminderEntry(prev, chip.rawValue, chip.entryKind));
   }, []);
 
   // pushOperation
@@ -862,6 +1573,23 @@ const CalendarManager: React.FC = () => {
     setOperationHistory((prev) => [record, ...prev].slice(0, 12));
   }, []);
 
+  // refreshTaskLinkedViews
+  // 是什么：任务关联视图刷新函数。
+  // 做什么：在日历工作项成功变更后，通知上层刷新任务列表与仪表盘状态。
+  // 为什么：任务、日历、仪表盘和团队统计使用同一工作内容时，前端状态也必须即时对齐。
+  const refreshTaskLinkedViews = useCallback(async () => {
+    if (!onTaskDataChanged) {
+      return;
+    }
+
+    try {
+      await onTaskDataChanged();
+    } catch (error) {
+      pushOperation('刷新任务看板', 'info', '日历工作项已保存，但任务 / 仪表盘刷新失败，请稍后手动刷新。');
+      console.error(error);
+    }
+  }, [onTaskDataChanged, pushOperation]);
+
   // loadMappings
   // 是什么：映射列表加载函数。
   // 做什么：拉取当前日历绑定信息并写入状态。
@@ -869,8 +1597,127 @@ const CalendarManager: React.FC = () => {
   const loadMappings = useCallback(async () => {
     const result = await getCalendarMappings();
     setMappings(Array.isArray(result.mappings) ? result.mappings : []);
+    setMappingsLoaded(true);
     return result;
   }, []);
+
+  // hydrateSchedulesByCalId
+  // 是什么：指定日历日程同步函数。
+  // 做什么：拉取目标日历的最新日程并替换本地对应事件快照，可按需静默执行。
+  // 为什么：CalendarManager 切出页面后会被卸载，回来时必须自动从服务端恢复当前日历的工作项。
+  const hydrateSchedulesByCalId = useCallback(
+    async (
+      calId: string,
+      options: {
+        silent?: boolean;
+      } = {}
+    ) => {
+      const normalizedCalId = String(calId || '').trim();
+      if (!normalizedCalId) {
+        return [] as CalendarBoardEvent[];
+      }
+
+      const existingPromise = hydratingSchedulesPromiseMapRef.current.get(normalizedCalId);
+      if (existingPromise) {
+        return existingPromise;
+      }
+
+      const hydrationPromise = (async () => {
+        const requestSequence = (scheduleFetchSequenceMapRef.current.get(normalizedCalId) || 0) + 1;
+        scheduleFetchSequenceMapRef.current.set(normalizedCalId, requestSequence);
+        const result = await getCalendarSchedules(normalizedCalId, {
+          offset: 0,
+          limit: 500,
+        });
+        const incomingEvents = mapResultToBoardEvents(
+          result,
+          normalizedCalId,
+          resolvedCurrentUserId,
+          options.silent ? 'api_hydrate' : 'api_fetch'
+        );
+        if ((scheduleFetchSequenceMapRef.current.get(normalizedCalId) || 0) !== requestSequence) {
+          return incomingEvents;
+        }
+        setEvents((prev) => replaceBoardEventsByCalendarId(prev, normalizedCalId, incomingEvents));
+        hydratedCalendarIdsRef.current.add(normalizedCalId);
+        if (!options.silent) {
+          pushOperation(
+            '刷新我的日程',
+            'success',
+            incomingEvents.length > 0 ? `已同步 ${incomingEvents.length} 条日程。` : '当前没有可展示的日程。'
+          );
+        }
+        return incomingEvents;
+      })()
+        .catch((error) => {
+          if (!options.silent) {
+            pushOperation('刷新我的日程', 'error', resolveErrorMessage(error));
+          }
+          throw error;
+        })
+        .finally(() => {
+          hydratingSchedulesPromiseMapRef.current.delete(normalizedCalId);
+        });
+
+      hydratingSchedulesPromiseMapRef.current.set(normalizedCalId, hydrationPromise);
+      return hydrationPromise;
+    },
+    [pushOperation, resolvedCurrentUserId]
+  );
+
+  // ensureCurrentUserCalendarReady
+  // 是什么：当前用户个人日历确保函数。
+  // 做什么：在确认当前用户未绑定日历时，调用后端执行“已有复用、缺失创建”，并回写前端状态。
+  // 为什么：日历创建入口已默认隐藏，页面必须自行保证“每人一历”成立，用户不应再手工创建。
+  const ensureCurrentUserCalendarReady = useCallback(async () => {
+    if (!resolvedCurrentUserId) {
+      pushOperation('准备个人日历', 'error', '未获取到登录身份，请重新登录后重试。');
+      return '';
+    }
+
+    if (activeCalId) {
+      return activeCalId;
+    }
+
+    if (ensuringCalendarPromiseRef.current) {
+      return ensuringCalendarPromiseRef.current;
+    }
+
+    const pendingPromise = (async () => {
+      try {
+        const result = await ensureUserCalendar({
+          user_id: resolvedCurrentUserId,
+          user_name: currentUserName,
+          source: 'calendar_manage_page',
+        });
+        const ensuredCalId = String((result as WecomApiResult).cal_id || '').trim();
+        if (!ensuredCalId) {
+          throw new Error(resolveErrorMessage({ response: { data: result } }));
+        }
+
+        setActiveCalId(ensuredCalId);
+        try {
+          await loadMappings();
+        } catch (error) {
+          pushOperation('准备个人日历', 'info', '个人日历已就绪，但映射刷新失败，请稍后手动刷新状态。');
+        }
+        pushOperation(
+          '准备个人日历',
+          'success',
+          result.created ? '未发现个人日历，已自动创建并完成绑定。' : '已自动确认并加载你的个人日历。'
+        );
+        return ensuredCalId;
+      } catch (error) {
+        pushOperation('准备个人日历', 'error', resolveErrorMessage(error));
+        return '';
+      } finally {
+        ensuringCalendarPromiseRef.current = null;
+      }
+    })();
+
+    ensuringCalendarPromiseRef.current = pendingPromise;
+    return pendingPromise;
+  }, [activeCalId, currentUserName, loadMappings, pushOperation, resolvedCurrentUserId]);
 
   // loadOrgUsers
   // 是什么：组织成员加载函数。
@@ -896,39 +1743,37 @@ const CalendarManager: React.FC = () => {
             data: result,
           },
         });
-        setOrgUsers([]);
-        setOrgUsersErrorHint(message);
-        pushOperation('加载组织成员', 'error', message);
+        const fallbackRows = normalizeOrgUserProfiles(currentUserFallbackOrgUsers);
+        const nextMessage = `${message}${fallbackRows.length > 0 ? ' 已保留当前登录账号作为候选，其余联系人可先手工输入。' : ''}`;
+        setOrgUsers(fallbackRows);
+        setOrgUsersErrorHint(nextMessage);
+        pushOperation('加载组织成员', fallbackRows.length > 0 ? 'info' : 'error', nextMessage);
         return result;
       }
 
-      const rows = Array.isArray(result.userlist) ? result.userlist : [];
-      const deduped = new Map<string, OrgUserProfile>();
+      const normalizedRows = normalizeOrgUserProfiles([
+        ...(Array.isArray(result.userlist) ? result.userlist : []),
+        ...currentUserFallbackOrgUsers,
+      ]);
+      const degradedHint = buildOrgUsersDegradedHint(result, normalizedRows.length > 0);
 
-      rows.forEach((item) => {
-        const userId = String(item.userid || '').trim();
-        if (!userId) {
-          return;
-        }
-        deduped.set(userId, item);
-      });
-
-      const normalizedRows = Array.from(deduped.values()).sort((a, b) => {
-        const nameA = String(a.name || a.userid || '').localeCompare(String(b.name || b.userid || ''));
-        return nameA;
-      });
       setOrgUsers(normalizedRows);
-      setOrgUsersErrorHint('');
+      setOrgUsersErrorHint(degradedHint);
+      if (degradedHint) {
+        pushOperation('加载组织成员', 'info', degradedHint);
+      }
       return result;
     } catch (error) {
-      const message = resolveErrorMessage(error);
+      const fallbackRows = normalizeOrgUserProfiles(currentUserFallbackOrgUsers);
+      const message = `${resolveErrorMessage(error)}${fallbackRows.length > 0 ? ' 已保留当前登录账号作为候选，其余联系人可先手工输入。' : ' 当前无法加载任何候选成员，请先手工输入联系人。'}`;
+      setOrgUsers(fallbackRows);
       setOrgUsersErrorHint(message);
-      pushOperation('加载组织成员', 'error', message);
-      throw error;
+      pushOperation('加载组织成员', fallbackRows.length > 0 ? 'info' : 'error', message);
+      return null;
     } finally {
       setOrgUsersLoading(false);
     }
-  }, [pushOperation]);
+  }, [currentUserFallbackOrgUsers, pushOperation]);
 
   // withLoading
   // 是什么：异步执行包装函数。
@@ -956,16 +1801,28 @@ const CalendarManager: React.FC = () => {
   }, [loadMappings, withLoading]);
 
   useEffect(() => {
+    if (!mappingsLoaded || !resolvedCurrentUserId || currentUserMapping || activeCalId) {
+      return;
+    }
+
+    ensureCurrentUserCalendarReady().catch(() => undefined);
+  }, [activeCalId, currentUserMapping, ensureCurrentUserCalendarReady, mappingsLoaded, resolvedCurrentUserId]);
+
+  useEffect(() => {
     loadOrgUsers().catch(() => undefined);
   }, [loadOrgUsers]);
 
   useEffect(() => {
-    const nextSummary = currentUserName ? `任务管家-${currentUserName}` : '任务管家-个人日历';
-    setCalendarForm((prev) => ({
-      ...prev,
-      summary: prev.summary || nextSummary,
-    }));
-  }, [currentUserName]);
+    const normalizedCalId = String(activeCalId || '').trim();
+    if (!normalizedCalId) {
+      return;
+    }
+    if (hydratedCalendarIdsRef.current.has(normalizedCalId)) {
+      return;
+    }
+
+    hydrateSchedulesByCalId(normalizedCalId, { silent: true }).catch(() => undefined);
+  }, [activeCalId, hydrateSchedulesByCalId]);
 
   useEffect(() => {
     const nextCalId = String(currentUserMapping?.cal_id || '').trim();
@@ -984,6 +1841,8 @@ const CalendarManager: React.FC = () => {
   useEffect(() => {
     if (!selectedEvent) {
       setScheduleEditorMentions('');
+      setScheduleEditorMentionKeyword('');
+      setSelectedAttendeeUserIds([]);
       return;
     }
     setScheduleEditor({
@@ -994,106 +1853,28 @@ const CalendarManager: React.FC = () => {
       endAt: fromUnixSecondsToDatetimeLocal(selectedEvent.endTime),
     });
     setScheduleEditorMentions('');
+    setScheduleEditorMentionKeyword('');
+    setSelectedAttendeeUserIds([]);
   }, [selectedEvent]);
-
-  useEffect(() => {
-    if (!canManageCalendar && actionTab === 'CALENDAR') {
-      setActionTab('SCHEDULE');
-    }
-  }, [actionTab, canManageCalendar]);
-
-  // createMyCalendar
-  // 是什么：个人日历创建并绑定函数。
-  // 做什么：按当前登录用户自动绑定创建结果。
-  // 为什么：为用户提供“一键创建新日历”的可控入口。
-  const createMyCalendar = async () => {
-    if (!resolvedCurrentUserId) {
-      pushOperation('创建新日历', 'error', '未获取到登录身份，请重新登录后重试。');
-      return;
-    }
-
-    await withLoading(
-      '创建新日历',
-      async () => {
-        const payloadSummary = calendarForm.summary.trim() || `任务管家-${currentUserName || '成员'}`;
-        const result = await createCalendar({
-          calendar: {
-            summary: payloadSummary,
-            color: calendarForm.color.trim() || '#1D4ED8',
-            description: calendarForm.description.trim(),
-            admins: [resolvedCurrentUserId],
-            shares: [{ userid: resolvedCurrentUserId, permission: 1 }],
-          },
-          bind_user_id: resolvedCurrentUserId,
-          bind_user_name: currentUserName,
-          source: 'calendar_manage_page',
-        });
-
-        const calId = String((result as WecomApiResult).cal_id || '').trim();
-        if (calId) {
-          setActiveCalId(calId);
-        }
-        await loadMappings();
-        return result;
-      },
-      '已创建并绑定你的新日历。'
-    );
-  };
 
   // refreshMySchedules
   // 是什么：个人日程刷新函数。
   // 做什么：拉取当前日历下日程并同步到月视图。
   // 为什么：让页面以“可视化日历”为主，不暴露查询参数细节。
   const refreshMySchedules = async () => {
-    if (!activeCalId) {
-      pushOperation('刷新我的日程', 'error', '请先点击“创建新日历”完成日历绑定。');
+    const targetCalId = activeCalId || (await ensureCurrentUserCalendarReady());
+    if (!targetCalId) {
       return;
     }
 
     setLoading(true);
     try {
-      const result = await getCalendarSchedules(activeCalId, {
-        offset: 0,
-        limit: 500,
-      });
-      const incomingEvents = mapResultToBoardEvents(result, activeCalId, 'api_fetch');
-      setEvents((prev) => mergeBoardEvents(prev, incomingEvents));
-      pushOperation(
-        '刷新我的日程',
-        'success',
-        incomingEvents.length > 0 ? `已同步 ${incomingEvents.length} 条日程。` : '当前没有可展示的日程。'
-      );
+      await hydrateSchedulesByCalId(targetCalId);
     } catch (error) {
-      pushOperation('刷新我的日程', 'error', resolveErrorMessage(error));
+      // 具体失败反馈已在 hydrateSchedulesByCalId 中处理，这里只负责结束 loading。
     } finally {
       setLoading(false);
     }
-  };
-
-  // updateMyCalendar
-  // 是什么：个人日历更新函数。
-  // 做什么：更新当前绑定日历的标题、颜色和描述。
-  // 为什么：用业务化文案替代原始接口字段操作体验。
-  const updateMyCalendar = async () => {
-    if (!activeCalId) {
-      pushOperation('更新我的日历', 'error', '请先完成日历绑定后再更新。');
-      return;
-    }
-
-    await withLoading(
-      '更新我的日历',
-      async () => {
-        return updateCalendar(activeCalId, {
-          calendar: {
-            cal_id: activeCalId,
-            summary: calendarForm.summary.trim(),
-            color: calendarForm.color.trim() || '#1D4ED8',
-            description: calendarForm.description.trim(),
-          },
-        });
-      },
-      '你的日历设置已更新。'
-    );
   };
 
   // buildLatestEventSnapshotByCalId
@@ -1107,16 +1888,21 @@ const CalendarManager: React.FC = () => {
         return events;
       }
 
+      const requestSequence = (scheduleFetchSequenceMapRef.current.get(normalizedCalId) || 0) + 1;
+      scheduleFetchSequenceMapRef.current.set(normalizedCalId, requestSequence);
       const result = await getCalendarSchedules(normalizedCalId, {
         offset: 0,
         limit: 500,
       });
-      const incomingEvents = mapResultToBoardEvents(result, normalizedCalId, 'api_prefetch');
-      const merged = mergeBoardEvents(events, incomingEvents);
+      const incomingEvents = mapResultToBoardEvents(result, normalizedCalId, resolvedCurrentUserId, 'api_prefetch');
+      if ((scheduleFetchSequenceMapRef.current.get(normalizedCalId) || 0) !== requestSequence) {
+        return incomingEvents;
+      }
+      const merged = replaceBoardEventsByCalendarId(events, normalizedCalId, incomingEvents);
       setEvents(merged);
       return merged;
     },
-    [events]
+    [events, resolvedCurrentUserId]
   );
 
   // createMySchedule
@@ -1124,8 +1910,8 @@ const CalendarManager: React.FC = () => {
   // 做什么：在当前绑定日历创建日程并回写到月视图。
   // 为什么：用户只关注“标题/时间/地点”，不感知 schedule_id。
   const createMySchedule = async () => {
-    if (!activeCalId) {
-      pushOperation('创建日程', 'error', '请先完成日历绑定后再创建日程。');
+    const targetCalId = activeCalId || (await ensureCurrentUserCalendarReady());
+    if (!targetCalId) {
       return;
     }
     if (!scheduleComposer.summary.trim()) {
@@ -1141,8 +1927,12 @@ const CalendarManager: React.FC = () => {
     }
 
     const hasComposerMentionInput = String(scheduleComposerMentions || '').trim().length > 0;
-    if (hasComposerMentionInput && composerMentionResult.rawMentionTokens.length === 0) {
-      pushOperation('创建日程', 'error', '提醒对象请输入 @姓名 或 @姓名(userid) 格式。');
+    if (
+      hasComposerMentionInput &&
+      composerMentionResult.rawMentionTokens.length === 0 &&
+      composerMentionResult.rawTextEntries.length === 0
+    ) {
+      pushOperation('创建日程', 'error', '跟进对象请填写姓名、账号，或使用 @姓名(userid) 形式。');
       return;
     }
 
@@ -1156,22 +1946,24 @@ const CalendarManager: React.FC = () => {
 
     let eventSnapshot = events;
     try {
-      eventSnapshot = await buildLatestEventSnapshotByCalId(activeCalId);
+      eventSnapshot = await buildLatestEventSnapshotByCalId(targetCalId);
     } catch (error) {
       pushOperation('创建日程', 'error', '拉取最新日程失败，无法完成冲突校验，请稍后重试。');
       return;
     }
 
     const conflictingEvent = findConflictingEvent(eventSnapshot, {
-      calId: activeCalId,
+      calId: targetCalId,
       startTime,
       endTime,
+      participantUserIds: composerInternalAttendees.map((item) => String(item.userid || '')),
+      fallbackOwnerUserId: resolvedCurrentUserId,
     });
     if (conflictingEvent) {
       pushOperation(
         '创建日程',
         'error',
-        `与现有日程“${conflictingEvent.summary}”时间冲突，请调整时间后再提交。`
+        `与同一负责人现有日程“${conflictingEvent.summary}”时间重叠，请调整时间或改派负责人后再提交。`
       );
       return;
     }
@@ -1180,7 +1972,7 @@ const CalendarManager: React.FC = () => {
       '创建日程',
       async () => {
         const schedulePayload: Record<string, unknown> = {
-          cal_id: activeCalId,
+          cal_id: targetCalId,
           summary: scheduleComposer.summary.trim(),
           description: composerDescription,
           location: scheduleComposer.location.trim(),
@@ -1201,20 +1993,21 @@ const CalendarManager: React.FC = () => {
             mergeBoardEvents(prev, [
               {
                 id: scheduleId,
-                calId: activeCalId,
+                calId: targetCalId,
                 summary: scheduleComposer.summary.trim(),
                 description: composerDescription,
                 location: scheduleComposer.location.trim(),
                 startTime,
                 endTime,
                 attendeesCount: composerInternalAttendees.length,
+                attendeeUserIds: composerInternalAttendees.map((item) => String(item.userid || '').trim()).filter(Boolean),
+                ownerUserId: resolvedCurrentUserId,
                 source: 'local_create',
               },
             ])
           );
           setSelectedEventId(scheduleId);
           setSelectedDayKey(toDateKey(new Date(startTime * 1000)));
-          setActionTab('SCHEDULE');
         }
         return result;
       },
@@ -1222,6 +2015,7 @@ const CalendarManager: React.FC = () => {
         composerInternalAttendees.length > 0 ? ` 已提醒 ${composerInternalAttendees.length} 位内部成员。` : ''
       }${composerMentionResult.externalNames.length > 0 ? ` 已记录 ${composerMentionResult.externalNames.length} 位外部提醒对象。` : ''}`
     );
+    await refreshTaskLinkedViews();
   };
 
   // updateSelectedSchedule
@@ -1231,6 +2025,10 @@ const CalendarManager: React.FC = () => {
   const updateSelectedSchedule = async () => {
     if (!selectedEvent) {
       pushOperation('更新日程', 'error', '请先在月历中选择要编辑的日程。');
+      return;
+    }
+    if (!canMutateSelectedEvent) {
+      pushOperation('更新日程', 'error', '当前日程由其他人创建，你暂无编辑权限。');
       return;
     }
     if (!scheduleEditor.summary.trim()) {
@@ -1246,8 +2044,12 @@ const CalendarManager: React.FC = () => {
     }
 
     const hasEditorMentionInput = String(scheduleEditorMentions || '').trim().length > 0;
-    if (hasEditorMentionInput && editorMentionResult.rawMentionTokens.length === 0) {
-      pushOperation('更新日程', 'error', '提醒对象请输入 @姓名 或 @姓名(userid) 格式。');
+    if (
+      hasEditorMentionInput &&
+      editorMentionResult.rawMentionTokens.length === 0 &&
+      editorMentionResult.rawTextEntries.length === 0
+    ) {
+      pushOperation('更新日程', 'error', '跟进对象请填写姓名、账号，或使用 @姓名(userid) 形式。');
       return;
     }
 
@@ -1255,7 +2057,11 @@ const CalendarManager: React.FC = () => {
       userid: item.userid,
     }));
     const shouldUpdateAttendeesByMention =
-      editorMentionResult.rawMentionTokens.length > 0 && editorInternalAttendees.length > 0;
+      (editorMentionResult.rawMentionTokens.length > 0 || editorMentionResult.rawTextEntries.length > 0) &&
+      editorInternalAttendees.length > 0;
+    const comparisonParticipantUserIds = shouldUpdateAttendeesByMention
+      ? editorInternalAttendees.map((item) => String(item.userid || ''))
+      : selectedEvent.attendeeUserIds;
     const editorDescription = composeDescriptionWithExternalMentions(
       scheduleEditor.description,
       editorMentionResult.externalNames
@@ -1274,12 +2080,14 @@ const CalendarManager: React.FC = () => {
       startTime,
       endTime,
       excludeEventId: selectedEvent.id,
+      participantUserIds: comparisonParticipantUserIds,
+      fallbackOwnerUserId: selectedEvent.ownerUserId || resolvedCurrentUserId,
     });
     if (conflictingEvent) {
       pushOperation(
         '更新日程',
         'error',
-        `与现有日程“${conflictingEvent.summary}”时间冲突，请调整时间后再提交。`
+        `与同一负责人现有日程“${conflictingEvent.summary}”时间重叠，请调整时间或改派负责人后再提交。`
       );
       return;
     }
@@ -1316,6 +2124,10 @@ const CalendarManager: React.FC = () => {
                   attendeesCount: shouldUpdateAttendeesByMention
                     ? editorInternalAttendees.length
                     : item.attendeesCount,
+                  attendeeUserIds: shouldUpdateAttendeesByMention
+                    ? editorInternalAttendees.map((attendee) => String(attendee.userid || '').trim()).filter(Boolean)
+                    : item.attendeeUserIds,
+                  ownerUserId: item.ownerUserId || resolvedCurrentUserId,
                   source: 'local_update',
                 }
               : item
@@ -1328,6 +2140,7 @@ const CalendarManager: React.FC = () => {
         shouldUpdateAttendeesByMention ? ` 已更新 ${editorInternalAttendees.length} 位内部提醒成员。` : ''
       }${editorMentionResult.externalNames.length > 0 ? ` 已记录 ${editorMentionResult.externalNames.length} 位外部提醒对象。` : ''}`
     );
+    await refreshTaskLinkedViews();
   };
 
   // cancelSelectedSchedule
@@ -1337,6 +2150,10 @@ const CalendarManager: React.FC = () => {
   const cancelSelectedSchedule = async () => {
     if (!selectedEvent) {
       pushOperation('取消日程', 'error', '请先在月历中选择要取消的日程。');
+      return;
+    }
+    if (!canMutateSelectedEvent) {
+      pushOperation('取消日程', 'error', '当前日程由其他人创建，你暂无删除权限。');
       return;
     }
 
@@ -1350,6 +2167,7 @@ const CalendarManager: React.FC = () => {
       },
       '选中日程已取消。'
     );
+    await refreshTaskLinkedViews();
   };
 
   // toggleAttendeeSelection
@@ -1379,6 +2197,10 @@ const CalendarManager: React.FC = () => {
       pushOperation('添加参与人', 'error', '请先在月历中选择一个日程。');
       return;
     }
+    if (!canMutateSelectedEvent) {
+      pushOperation('添加参与人', 'error', '当前日程由其他人创建，你暂无编辑权限。');
+      return;
+    }
 
     if (selectedAttendeeUserIds.length === 0) {
       pushOperation('添加参与人', 'error', '请先选择至少一位组织成员。');
@@ -1393,13 +2215,22 @@ const CalendarManager: React.FC = () => {
         const result = await addScheduleAttendees(selectedEvent.id, attendees);
         setEvents((prev) =>
           prev.map((item) =>
-            item.id === selectedEvent.id ? { ...item, attendeesCount: item.attendeesCount + attendees.length } : item
+            item.id === selectedEvent.id
+              ? {
+                  ...item,
+                  attendeesCount: item.attendeesCount + attendees.length,
+                  attendeeUserIds: Array.from(
+                    new Set([...item.attendeeUserIds, ...attendees.map((attendee) => String(attendee.userid || '').trim())])
+                  ).filter(Boolean),
+                }
+              : item
           )
         );
         return result;
       },
       `已添加 ${attendees.length} 位参与人。`
     );
+    await refreshTaskLinkedViews();
   };
 
   // removeSelectedAttendeesFromSchedule
@@ -1409,6 +2240,10 @@ const CalendarManager: React.FC = () => {
   const removeSelectedAttendeesFromSchedule = async () => {
     if (!selectedEvent) {
       pushOperation('移除参与人', 'error', '请先在月历中选择一个日程。');
+      return;
+    }
+    if (!canMutateSelectedEvent) {
+      pushOperation('移除参与人', 'error', '当前日程由其他人创建，你暂无编辑权限。');
       return;
     }
 
@@ -1426,7 +2261,13 @@ const CalendarManager: React.FC = () => {
         setEvents((prev) =>
           prev.map((item) =>
             item.id === selectedEvent.id
-              ? { ...item, attendeesCount: Math.max(0, item.attendeesCount - attendees.length) }
+              ? {
+                  ...item,
+                  attendeesCount: Math.max(0, item.attendeesCount - attendees.length),
+                  attendeeUserIds: item.attendeeUserIds.filter(
+                    (userId) => !attendees.some((attendee) => String(attendee.userid || '').trim() === userId)
+                  ),
+                }
               : item
           )
         );
@@ -1434,6 +2275,7 @@ const CalendarManager: React.FC = () => {
       },
       `已移除 ${attendees.length} 位参与人。`
     );
+    await refreshTaskLinkedViews();
   };
 
   // jumpMonth
@@ -1452,6 +2294,7 @@ const CalendarManager: React.FC = () => {
     const today = new Date();
     setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedDayKey(toDateKey(today));
+    setSelectedEventId('');
   };
 
   return (
@@ -1486,8 +2329,10 @@ const CalendarManager: React.FC = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs text-slate-500">我的日历状态</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{activeCalId ? '已就绪' : '待准备'}</p>
-          <p className="mt-1 text-xs text-slate-400">{activeCalId ? '可直接创建与管理日程' : '点击右侧“创建新日历”'}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{activeCalId ? '已就绪' : '准备中'}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            {activeCalId ? '可直接创建与管理日程' : '系统会自动检查并补齐你的个人日历'}
+          </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs text-slate-500">本月可见日程</p>
@@ -1501,51 +2346,75 @@ const CalendarManager: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-        <aside className="space-y-5">
+      <div
+        data-testid="calendar-layout"
+        className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]"
+      >
+        <section data-testid="calendar-main-column" className="min-w-0">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside data-testid="calendar-left-column" className="space-y-5">
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">迷你月历</h2>
-              <span className="text-xs text-slate-500">{monthTitle}</span>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">迷你月历</h2>
+                <span className="text-xs text-slate-500">{monthTitle}</span>
+              </div>
+              <button
+                type="button"
+                data-testid="mini-calendar-toggle"
+                onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
+                aria-expanded={!miniCalendarCollapsed}
+              >
+                {miniCalendarCollapsed ? '展开' : '收起'}
+              </button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-[10px] text-slate-400">
-              {WEEKDAY_LABELS.map((item) => (
-                <span key={`mini-week-${item}`} className="py-1 text-center">
-                  {item.replace('周', '')}
-                </span>
-              ))}
-            </div>
-            <div className="mt-1 grid grid-cols-7 gap-1">
-              {monthCells.map((day) => {
-                const key = toDateKey(day);
-                const isCurrentMonth = day.getMonth() === viewMonth.getMonth();
-                const isToday = key === todayKey;
-                const isSelected = key === selectedDayKey;
-                const hasEvent = Boolean(eventMapByDay.get(key)?.length);
+            {!miniCalendarCollapsed ? (
+              <div data-testid="mini-calendar-body">
+                <div className="grid grid-cols-7 gap-1 text-[10px] text-slate-400">
+                  {WEEKDAY_LABELS.map((item) => (
+                    <span key={`mini-week-${item}`} className="py-1 text-center">
+                      {item.replace('周', '')}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 grid grid-cols-7 gap-1">
+                  {monthCells.map((day) => {
+                    const key = toDateKey(day);
+                    const isCurrentMonth = day.getMonth() === viewMonth.getMonth();
+                    const isToday = key === todayKey;
+                    const isSelected = key === selectedDayKey;
+                    const hasEvent = Boolean(eventMapByDay.get(key)?.length);
 
-                return (
-                  <button
-                    key={`mini-${key}`}
-                    onClick={() => setSelectedDayKey(key)}
-                    className={`relative rounded-md px-1 py-1 text-xs transition ${
-                      isSelected
-                        ? 'bg-blue-600 text-white'
-                        : isCurrentMonth
-                        ? 'text-slate-700 hover:bg-slate-100'
-                        : 'text-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{day.getDate()}</span>
-                    {isToday && !isSelected ? (
-                      <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    ) : null}
-                    {hasEvent && !isSelected ? (
-                      <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-emerald-500" />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+                    return (
+                      <button
+                        key={`mini-${key}`}
+                        data-testid={`mini-calendar-day-${key}`}
+                        onClick={() => {
+                          setSelectedDayKey(key);
+                          setSelectedEventId('');
+                        }}
+                        className={`relative rounded-md px-1 py-1 text-xs transition ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : isCurrentMonth
+                            ? 'text-slate-700 hover:bg-slate-100'
+                            : 'text-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{day.getDate()}</span>
+                        {isToday && !isSelected ? (
+                          <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                        ) : null}
+                        {hasEvent && !isSelected ? (
+                          <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-emerald-500" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           {canManageCalendar ? (
@@ -1557,7 +2426,7 @@ const CalendarManager: React.FC = () => {
               <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
                 {!currentUserMapping ? (
                   <p className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-400">
-                    还没有可用日历，请在右侧“日历”模块先创建新日历。
+                    当前个人日历准备中，系统会自动补齐，不需要手工创建。
                   </p>
                 ) : (
                   <div className="w-full rounded-lg border border-blue-300 bg-blue-50/60 p-3 text-left">
@@ -1571,10 +2440,60 @@ const CalendarManager: React.FC = () => {
               </div>
             </section>
           ) : null}
-        </aside>
 
-        <section className="space-y-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section
+            data-testid="calendar-operation-panel"
+            className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.75)]"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-slate-900">操作反馈</h2>
+              <span className="text-[11px] text-slate-400">{operationHistory.length} 条记录</span>
+            </div>
+            {latestOperation ? (
+              <div
+                className={`rounded-xl border p-3 ${
+                  latestOperation.status === 'success'
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : latestOperation.status === 'error'
+                    ? 'border-rose-200 bg-rose-50'
+                    : 'border-blue-200 bg-blue-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle2
+                    className={`h-4 w-4 ${
+                      latestOperation.status === 'success'
+                        ? 'text-emerald-600'
+                        : latestOperation.status === 'error'
+                        ? 'text-rose-600'
+                        : 'text-blue-600'
+                    }`}
+                  />
+                  <p className="text-sm font-semibold text-slate-800">{latestOperation.action}</p>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">{latestOperation.message}</p>
+                <p className="mt-1 text-[11px] text-slate-400">{latestOperation.createdAt}</p>
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-slate-200 p-3 text-xs text-slate-400">
+                暂无操作记录。创建、更新或取消日程后，反馈会自动出现在这里。
+              </p>
+            )}
+
+            <div className="max-h-[280px] space-y-2 overflow-auto pr-1">
+              {operationHistory.map((record) => (
+                <div key={record.id} className="rounded-xl border border-slate-200 p-3">
+                  <p className="text-xs font-semibold text-slate-700">{record.action}</p>
+                  <p className="mt-1 text-xs text-slate-600">{record.message}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">{record.createdAt}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+            </aside>
+
+            <section className="space-y-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-5 w-5 text-blue-600" />
@@ -1621,7 +2540,11 @@ const CalendarManager: React.FC = () => {
                 return (
                   <button
                     key={`cell-${key}`}
-                    onClick={() => setSelectedDayKey(key)}
+                    data-testid={`main-calendar-day-${key}`}
+                    onClick={() => {
+                      setSelectedDayKey(key);
+                      setSelectedEventId('');
+                    }}
                     className={`min-h-[124px] border-b border-r border-slate-100 px-2 py-2 text-left transition ${
                       isSelected ? 'bg-blue-50/80' : 'hover:bg-slate-50'
                     }`}
@@ -1652,7 +2575,6 @@ const CalendarManager: React.FC = () => {
                             evt.stopPropagation();
                             setSelectedEventId(event.id);
                             setSelectedDayKey(key);
-                            setActionTab('SCHEDULE');
                           }}
                           className={`block w-full truncate rounded px-2 py-1 text-left text-[11px] text-white ${
                             selectedEventId === event.id
@@ -1673,7 +2595,7 @@ const CalendarManager: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">选中日期事件</h3>
@@ -1692,7 +2614,7 @@ const CalendarManager: React.FC = () => {
 
             {selectedDayEvents.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
-                当前日期暂无事件。你可以在右侧“日程”中创建，或点击“刷新状态”同步最新日程。
+                当前日期暂无事件。点击月历空白格后，右侧会自动切换到新建模式。
               </div>
             ) : (
               <div className="space-y-3">
@@ -1701,10 +2623,7 @@ const CalendarManager: React.FC = () => {
                   return (
                     <button
                       key={`selected-${event.id}`}
-                      onClick={() => {
-                        setSelectedEventId(event.id);
-                        setActionTab('SCHEDULE');
-                      }}
+                      onClick={() => setSelectedEventId(event.id)}
                       className={`w-full rounded-lg border p-3 text-left transition ${
                         isActive
                           ? 'border-blue-300 bg-blue-50/70'
@@ -1729,295 +2648,266 @@ const CalendarManager: React.FC = () => {
                 })}
               </div>
             )}
+              </div>
+            </section>
           </div>
         </section>
 
-        <aside className="space-y-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className={`grid gap-2 ${canManageCalendar ? 'grid-cols-4' : 'grid-cols-3'}`}>
-              {scheduleTabs.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = actionTab === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActionTab(tab.key)}
-                    className={`flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-xs transition ${
-                      isActive ? 'bg-blue-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {canManageCalendar && actionTab === 'CALENDAR' ? (
-            <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">我的日历维护</h2>
-              <p className="text-xs text-slate-500">
-                当前状态：{activeCalId ? '已选中可用日历' : '尚未绑定日历，请先创建新日历'}
-              </p>
-              <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3">
-                <p className="text-[11px] text-slate-500">日历ID（系统自动绑定，只读不可更改）</p>
-                <p className="break-all text-xs font-medium text-slate-700">{activeCalId || '-'}</p>
-              </div>
-              <button
-                onClick={createMyCalendar}
-                className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                disabled={loading}
-              >
-                创建新日历
-              </button>
-              <button
-                onClick={refreshMySchedules}
-                className="w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                disabled={loading}
-              >
-                刷新我的日程
-              </button>
-              <input
-                value={calendarForm.summary}
-                onChange={(event) => setCalendarForm((prev) => ({ ...prev, summary: event.target.value }))}
-                placeholder="日历名称"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <input
-                value={calendarForm.color}
-                onChange={(event) => setCalendarForm((prev) => ({ ...prev, color: event.target.value }))}
-                placeholder="主色（例如 #1D4ED8）"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <textarea
-                value={calendarForm.description}
-                onChange={(event) => setCalendarForm((prev) => ({ ...prev, description: event.target.value }))}
-                placeholder="日历描述"
-                className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-              <button
-                onClick={updateMyCalendar}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
-                disabled={loading}
-              >
-                <PencilLine className="h-4 w-4" />
-                更新我的日历
-              </button>
-            </section>
-          ) : null}
-
-          {actionTab === 'SCHEDULE' ? (
-            <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">日程创建与编辑</h2>
-              <button
-                onClick={refreshMySchedules}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-                disabled={loading}
-              >
-                刷新我的日程
-              </button>
-
-              <div className="space-y-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-700">创建新日程</p>
-                <input
-                  value={scheduleComposer.summary}
-                  onChange={(event) => setScheduleComposer((prev) => ({ ...prev, summary: event.target.value }))}
-                  placeholder="日程标题"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-                <textarea
-                  value={scheduleComposer.description}
-                  onChange={(event) =>
-                    setScheduleComposer((prev) => ({ ...prev, description: event.target.value }))
-                  }
-                  placeholder="日程说明（可选）"
-                  className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-                <input
-                  value={scheduleComposer.location}
-                  onChange={(event) => setScheduleComposer((prev) => ({ ...prev, location: event.target.value }))}
-                  placeholder="地点（可选）"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                />
-                <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
-                  <p className="text-[11px] font-semibold text-slate-700">提醒对象（@提及）</p>
-                  <input
-                    value={scheduleComposerMentions}
-                    onChange={(event) => setScheduleComposerMentions(event.target.value)}
-                    placeholder="@张三(zhangsan) @客户王总"
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                  />
-                  <p className="text-[11px] text-slate-500">
-                    内部提醒 {composerMentionResult.internalUsers.length} 人，外部提醒{' '}
-                    {composerMentionResult.externalNames.length} 人
+        <aside data-testid="calendar-side-panel" className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.8)]">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-4 py-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4 text-cyan-300" />
+                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/90">
+                      {selectedEvent ? 'Edit Schedule' : 'Create Schedule'}
+                    </p>
+                  </div>
+                  <h2 className="mt-2 text-lg font-semibold">
+                    {selectedEvent ? `编辑：${selectedEvent.summary}` : `新建：${selectedDayKey}`}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-300">
+                    {selectedEvent
+                      ? '点击其他已有日程会直接切换到编辑，点击月历空白格会返回新建模式。'
+                      : '点击月历空白格即可新增日程，点击已有日程则自动切换为编辑。'}
                   </p>
-                  {composerMentionCandidates.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {composerMentionCandidates.map((member) => {
-                        const userId = String(member.userid || '').trim();
-                        if (!userId) {
-                          return null;
-                        }
-                        const name = String(member.name || userId).trim() || userId;
-                        return (
-                          <button
-                            key={`composer-mention-${userId}`}
-                            onClick={() => appendComposerMentionUser(member)}
-                            className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 transition hover:bg-blue-100"
-                            type="button"
-                            disabled={loading}
-                          >
-                            @{name}({userId})
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {selectedEventReadonlyHint ? (
+                    <p className="mt-2 rounded-xl border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                      {selectedEventReadonlyHint}
+                    </p>
                   ) : null}
-                  <p className="text-[10px] text-slate-400">
-                    输入 @ 后可点选内部成员；无通讯录权限时可手输 @姓名(userid) 指定内部提醒；未匹配内部账号的 @姓名 将按外部提醒写入日程说明。
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="datetime-local"
-                    value={scheduleComposer.startAt}
-                    onChange={(event) => setScheduleComposer((prev) => ({ ...prev, startAt: event.target.value }))}
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                  />
-                  <input
-                    type="datetime-local"
-                    value={scheduleComposer.endAt}
-                    onChange={(event) => setScheduleComposer((prev) => ({ ...prev, endAt: event.target.value }))}
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                  />
                 </div>
                 <button
-                  onClick={createMySchedule}
-                  className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
+                  onClick={refreshMySchedules}
+                  className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/20 disabled:opacity-60"
                   disabled={loading}
                 >
-                  创建日程
+                  刷新日程
                 </button>
               </div>
+            </div>
 
-              <div className="space-y-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-700">
-                  编辑已选日程{selectedEvent ? `：${selectedEvent.summary}` : '（请先在月历中选择）'}
-                </p>
-                <input
-                  value={scheduleEditor.summary}
-                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, summary: event.target.value }))}
-                  placeholder="日程标题"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  disabled={!selectedEvent}
-                />
-                <textarea
-                  value={scheduleEditor.description}
-                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, description: event.target.value }))}
-                  placeholder="日程说明"
-                  className="min-h-16 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  disabled={!selectedEvent}
-                />
-                <input
-                  value={scheduleEditor.location}
-                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, location: event.target.value }))}
-                  placeholder="地点"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                  disabled={!selectedEvent}
-                />
-                <div className="space-y-2 rounded-md border border-slate-200 bg-white p-2">
-                  <p className="text-[11px] font-semibold text-slate-700">提醒对象（@提及）</p>
-                  <input
-                    value={scheduleEditorMentions}
-                    onChange={(event) => setScheduleEditorMentions(event.target.value)}
-                    placeholder="@张三(zhangsan) @客户王总"
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                    disabled={!selectedEvent}
+            <div className="space-y-4 p-4">
+              {!selectedEvent ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">日程标题</label>
+                    <input
+                      value={scheduleComposer.summary}
+                      onChange={(event) => setScheduleComposer((prev) => ({ ...prev, summary: event.target.value }))}
+                      placeholder="例如：客户回访、周会、里程碑检查"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">日程说明</label>
+                    <textarea
+                      value={scheduleComposer.description}
+                      onChange={(event) =>
+                        setScheduleComposer((prev) => ({ ...prev, description: event.target.value }))
+                      }
+                      placeholder="补充会议目标、准备事项或结果预期（可选）"
+                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">地点</label>
+                    <input
+                      value={scheduleComposer.location}
+                      onChange={(event) => setScheduleComposer((prev) => ({ ...prev, location: event.target.value }))}
+                      placeholder="线上会议室 / 客户现场 / 办公室"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <ReminderInputPanel
+                    title="跟进对象"
+                    helperText="先点选需要跟进的同事；客户、供应商或其他联系人可直接在文本区填写。"
+                    searchKeyword={scheduleComposerMentionKeyword}
+                    onSearchKeywordChange={setScheduleComposerMentionKeyword}
+                    rawValue={scheduleComposerMentions}
+                    onRawValueChange={setScheduleComposerMentions}
+                    chips={composerReminderChipItems}
+                    mentionResult={composerMentionResult}
+                    candidates={composerMentionCandidates}
+                    onPickMember={appendComposerMentionUser}
+                    onRemoveChip={removeComposerReminderChip}
+                    loading={loading}
+                    orgUsersLoading={orgUsersLoading}
+                    orgUsersErrorHint={orgUsersErrorHint}
                   />
-                  <p className="text-[11px] text-slate-500">
-                    内部提醒 {editorMentionResult.internalUsers.length} 人，外部提醒{' '}
-                    {editorMentionResult.externalNames.length} 人
-                  </p>
-                  {editorMentionCandidates.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {editorMentionCandidates.map((member) => {
-                        const userId = String(member.userid || '').trim();
-                        if (!userId) {
-                          return null;
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-500">开始时间</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleComposer.startAt}
+                        min={selectedDayKey ? `${selectedDayKey}T00:00` : undefined}
+                        onChange={(event) =>
+                          setScheduleComposer((prev) => ({ ...prev, startAt: event.target.value }))
                         }
-                        const name = String(member.name || userId).trim() || userId;
-                        return (
-                          <button
-                            key={`editor-mention-${userId}`}
-                            onClick={() => appendEditorMentionUser(member)}
-                            className="rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
-                            type="button"
-                            disabled={loading || !selectedEvent}
-                          >
-                            @{name}({userId})
-                          </button>
-                        );
-                      })}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                      />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-500">结束时间</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleComposer.endAt}
+                        min={scheduleComposer.startAt || undefined}
+                        onChange={(event) =>
+                          setScheduleComposer((prev) => ({ ...prev, endAt: event.target.value }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  {composerHasInvalidTimeRange ? (
+                    <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                      结束时间必须晚于开始时间，且不能与开始时间相同。
+                    </p>
                   ) : null}
-                  <p className="text-[10px] text-slate-400">
-                    编辑时填写 @成员 可同步更新内部提醒；无通讯录权限时可手输 @姓名(userid)；@外部姓名 会记录到日程说明中。
+                  <button
+                    onClick={createMySchedule}
+                    className="w-full rounded-xl bg-blue-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
+                    disabled={loading || composerHasInvalidTimeRange}
+                  >
+                    为 {selectedDayKey} 创建日程
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">日程标题</label>
+                    <input
+                      value={scheduleEditor.summary}
+                      onChange={(event) => setScheduleEditor((prev) => ({ ...prev, summary: event.target.value }))}
+                      placeholder="日程标题"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                      disabled={loading || !canMutateSelectedEvent}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">日程说明</label>
+                    <textarea
+                      value={scheduleEditor.description}
+                      onChange={(event) => setScheduleEditor((prev) => ({ ...prev, description: event.target.value }))}
+                      placeholder="补充会议目标、准备事项或结果预期"
+                      className="min-h-[92px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                      disabled={loading || !canMutateSelectedEvent}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-500">地点</label>
+                    <input
+                      value={scheduleEditor.location}
+                      onChange={(event) => setScheduleEditor((prev) => ({ ...prev, location: event.target.value }))}
+                      placeholder="地点"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                      disabled={loading || !canMutateSelectedEvent}
+                    />
+                  </div>
+                  <ReminderInputPanel
+                    title="跟进对象"
+                    helperText="编辑当前日程的跟进同事和其他联系人；点击标签可直接移除单个对象。"
+                    searchKeyword={scheduleEditorMentionKeyword}
+                    onSearchKeywordChange={setScheduleEditorMentionKeyword}
+                    rawValue={scheduleEditorMentions}
+                    onRawValueChange={setScheduleEditorMentions}
+                    chips={editorReminderChipItems}
+                    mentionResult={editorMentionResult}
+                    candidates={editorMentionCandidates}
+                    onPickMember={appendEditorMentionUser}
+                    onRemoveChip={removeEditorReminderChip}
+                    loading={loading}
+                    disabled={loading || !canMutateSelectedEvent}
+                    orgUsersLoading={orgUsersLoading}
+                    orgUsersErrorHint={orgUsersErrorHint}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-500">开始时间</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleEditor.startAt}
+                        min={selectedDayKey ? `${selectedDayKey}T00:00` : undefined}
+                        onChange={(event) =>
+                          setScheduleEditor((prev) => ({ ...prev, startAt: event.target.value }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                        disabled={loading || !canMutateSelectedEvent}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-500">结束时间</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleEditor.endAt}
+                        min={scheduleEditor.startAt || undefined}
+                        onChange={(event) =>
+                          setScheduleEditor((prev) => ({ ...prev, endAt: event.target.value }))
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                        disabled={loading || !canMutateSelectedEvent}
+                      />
+                    </div>
+                  </div>
+                  {editorHasInvalidTimeRange ? (
+                    <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                      结束时间必须晚于开始时间，且不能与开始时间相同。
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={updateSelectedSchedule}
+                      className="rounded-xl bg-amber-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                      disabled={loading || !selectedEvent || !canMutateSelectedEvent || editorHasInvalidTimeRange}
+                    >
+                      更新当前日程
+                    </button>
+                    <button
+                      onClick={cancelSelectedSchedule}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+                      disabled={loading || !selectedEvent || !canMutateSelectedEvent}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      取消日程
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          {selectedEvent ? (
+            <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.75)]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">参与人管理</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    当前选中：{selectedEvent.summary}。如需额外补充或移除参与人，可直接在这里批量处理。
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="datetime-local"
-                    value={scheduleEditor.startAt}
-                    onChange={(event) => setScheduleEditor((prev) => ({ ...prev, startAt: event.target.value }))}
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                    disabled={!selectedEvent}
-                  />
-                  <input
-                    type="datetime-local"
-                    value={scheduleEditor.endAt}
-                    onChange={(event) => setScheduleEditor((prev) => ({ ...prev, endAt: event.target.value }))}
-                    className="w-full rounded-md border border-slate-300 px-2 py-2 text-xs"
-                    disabled={!selectedEvent}
-                  />
-                </div>
-                <button
-                  onClick={updateSelectedSchedule}
-                  className="w-full rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
-                  disabled={loading || !selectedEvent}
-                >
-                  更新选中日程
-                </button>
-                <button
-                  onClick={cancelSelectedSchedule}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
-                  disabled={loading || !selectedEvent}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  取消选中日程
-                </button>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                  已选 {selectedAttendeeUserIds.length}
+                </span>
               </div>
-            </section>
-          ) : null}
-
-          {actionTab === 'ATTENDEE' ? (
-            <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">参与人管理</h2>
-              <p className="text-xs text-slate-500">
-                {selectedEvent
-                  ? `当前选中：${selectedEvent.summary}`
-                  : '请先在月历里选择一个日程，然后从组织成员中选择参与人。'}
-              </p>
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   value={attendeeKeyword}
                   onChange={(event) => setAttendeeKeyword(event.target.value)}
                   placeholder="搜索组织成员（姓名/账号/岗位）"
-                  className="w-full rounded-md border border-slate-300 py-2 pl-9 pr-3 text-sm"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-700 transition focus:border-blue-400 focus:bg-white focus:outline-none"
+                  disabled={loading || !canMutateSelectedEvent}
                 />
               </label>
-              <div className="max-h-56 space-y-2 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+              {!canMutateSelectedEvent ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
+                  当前日程由其他人创建，参与人列表仅供查看，不能直接增删。
+                </div>
+              ) : null}
+              <div className="max-h-56 space-y-2 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-2">
                 {orgUsersLoading ? (
                   <p className="p-2 text-xs text-slate-500">正在加载组织成员...</p>
                 ) : filteredOrgUsers.length === 0 ? (
@@ -2026,7 +2916,7 @@ const CalendarManager: React.FC = () => {
                     {orgUsersErrorHint ? (
                       <button
                         onClick={() => loadOrgUsers().catch(() => undefined)}
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
+                        className="rounded-xl border border-slate-300 px-2 py-1 text-xs text-slate-600 transition hover:bg-slate-100"
                         disabled={orgUsersLoading || loading}
                       >
                         重新加载组织成员
@@ -2040,89 +2930,53 @@ const CalendarManager: React.FC = () => {
                     return (
                       <label
                         key={`attendee-${userId}`}
-                        className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700 hover:border-blue-300"
+                        className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 transition hover:border-blue-300"
                       >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleAttendeeSelection(userId)}
                           className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300"
+                          disabled={loading || !canMutateSelectedEvent}
                         />
                         <span className="min-w-0">
                           <span className="block truncate font-medium text-slate-800">
                             {member.name || userId}
                           </span>
-                          <span className="block truncate text-slate-500">{userId}</span>
+                          <span className="block truncate text-slate-500">
+                            {userId}
+                            {member.position ? ` · ${member.position}` : ''}
+                          </span>
                         </span>
                       </label>
                     );
                   })
                 )}
               </div>
-              <p className="text-xs text-slate-500">已选择 {selectedAttendeeUserIds.length} 位成员</p>
-              <button
-                onClick={addSelectedAttendeesToSchedule}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
-                disabled={loading || !selectedEvent}
-              >
-                <UserRoundPlus className="h-4 w-4" />
-                添加所选参与人
-              </button>
-              <button
-                onClick={removeSelectedAttendeesFromSchedule}
-                className="w-full rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-60"
-                disabled={loading || !selectedEvent}
-              >
-                移除所选参与人
-              </button>
-            </section>
-          ) : null}
-
-          {actionTab === 'RESULT' ? (
-            <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold text-slate-900">操作结果</h2>
-              {latestOperation ? (
-                <div
-                  className={`rounded-lg border p-3 ${
-                    latestOperation.status === 'success'
-                      ? 'border-emerald-200 bg-emerald-50'
-                      : latestOperation.status === 'error'
-                      ? 'border-rose-200 bg-rose-50'
-                      : 'border-blue-200 bg-blue-50'
-                  }`}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={addSelectedAttendeesToSchedule}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                  disabled={loading || !selectedEvent || !canMutateSelectedEvent}
                 >
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2
-                      className={`h-4 w-4 ${
-                        latestOperation.status === 'success'
-                          ? 'text-emerald-600'
-                          : latestOperation.status === 'error'
-                          ? 'text-rose-600'
-                          : 'text-blue-600'
-                      }`}
-                    />
-                    <p className="text-sm font-semibold text-slate-800">{latestOperation.action}</p>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-600">{latestOperation.message}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">{latestOperation.createdAt}</p>
-                </div>
-              ) : (
-                <p className="rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-400">
-                  暂无操作记录，你执行动作后会在这里看到结果反馈。
-                </p>
-              )}
-
-              <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
-                {operationHistory.map((record) => (
-                  <div key={record.id} className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-semibold text-slate-700">{record.action}</p>
-                    <p className="mt-1 text-xs text-slate-600">{record.message}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{record.createdAt}</p>
-                  </div>
-                ))}
+                  <UserRoundPlus className="h-4 w-4" />
+                  添加所选参与人
+                </button>
+                <button
+                  onClick={removeSelectedAttendeesFromSchedule}
+                  className="rounded-xl bg-orange-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-orange-700 disabled:opacity-60"
+                  disabled={loading || !selectedEvent || !canMutateSelectedEvent}
+                >
+                  移除所选参与人
+                </button>
               </div>
             </section>
-          ) : null}
+          ) : (
+            <section className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-400 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.45)]">
+              点击已有日程后，这里会自动展开对应的参与人管理。
+            </section>
+          )}
+
         </aside>
       </div>
     </div>

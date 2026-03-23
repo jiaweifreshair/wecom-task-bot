@@ -8,6 +8,7 @@ const db = require('../src/models/db');
 const wecom = require('../src/services/wecom');
 const syncService = require('../src/services/sync');
 const { taskService } = require('../src/services/task');
+const userCalendarStore = require('../src/services/user-calendar-store');
 
 const runSql = (sql, params = []) => {
   return new Promise((resolve, reject) => {
@@ -37,6 +38,10 @@ const withStub = async (target, key, replacement, run) => {
 
 test.beforeEach(async () => {
   await runSql('DELETE FROM user_calendar_map');
+});
+
+test('测试环境应使用隔离数据库文件，避免污染正式库', () => {
+  assert.match(String(db.dbPath || ''), /tasks\.test\.db$/);
 });
 
 test('syncSchedules 应按员工日历逐个拉取并汇总', async () => {
@@ -277,6 +282,55 @@ test('resolveSyncCalendarTargets 应包含数据库用户日历映射', async ()
     assert.equal(targets.length, 1);
     assert.equal(targets[0].user_id, 'user-db');
     assert.equal(targets[0].cal_id, 'cal-db');
+  } finally {
+    process.env.USER_CALENDAR_MAP = originalUserCalendarMap;
+    process.env.DEFAULT_CAL_ID = originalDefaultCalId;
+    syncService.defaultCalId = originalServiceDefaultCalId;
+    syncService.userCalendarMapRaw = originalServiceUserCalendarMapRaw;
+  }
+});
+
+test('syncSchedules 在 90457 时应清理数据库中的失效日历映射', async () => {
+  const originalUserCalendarMap = process.env.USER_CALENDAR_MAP;
+  const originalDefaultCalId = process.env.DEFAULT_CAL_ID;
+  const originalServiceDefaultCalId = syncService.defaultCalId;
+  const originalServiceUserCalendarMapRaw = syncService.userCalendarMapRaw;
+
+  process.env.USER_CALENDAR_MAP = '';
+  process.env.DEFAULT_CAL_ID = '';
+  syncService.defaultCalId = '';
+  syncService.userCalendarMapRaw = '';
+
+  try {
+    await runSql(
+      `INSERT INTO user_calendar_map (user_id, cal_id, source, updated_at) VALUES (?, ?, ?, datetime('now'))`,
+      ['user-db', 'cal-invalid', 'auto_created_login']
+    );
+
+    await withStub(
+      wecom,
+      'getScheduleList',
+      async () => ({
+        errcode: 90457,
+        errmsg: 'invalid calendar id',
+      }),
+      async () => {
+        await withStub(
+          syncService,
+          'dispatchDateReminders',
+          async () => ({ sent_count: 0, checked_count: 0 }),
+          async () => {
+            const result = await syncService.syncSchedules();
+            const rows = await userCalendarStore.listUserCalendarRows();
+
+            assert.equal(result.success, true);
+            assert.equal(result.calendar_failed_count, 1);
+            assert.equal(result.calendar_errors[0].mapping_removed, true);
+            assert.equal(rows.length, 0);
+          }
+        );
+      }
+    );
   } finally {
     process.env.USER_CALENDAR_MAP = originalUserCalendarMap;
     process.env.DEFAULT_CAL_ID = originalDefaultCalId;

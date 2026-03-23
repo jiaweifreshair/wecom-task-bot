@@ -318,8 +318,10 @@ test('listUsersByDepartment 在 contact 返回 48009 时应回退 default secret
   const tokenCalls = [];
   const originalContactSecret = wecom.contactSecret;
   const originalCorpSecret = wecom.corpSecret;
+  const originalContactSecretUserListDenied = wecom.contactSecretUserListDenied;
   wecom.contactSecret = 'contact-secret-for-test';
   wecom.corpSecret = 'default-secret-for-test';
+  wecom.contactSecretUserListDenied = false;
 
   try {
     await withStub(
@@ -374,5 +376,77 @@ test('listUsersByDepartment 在 contact 返回 48009 时应回退 default secret
   } finally {
     wecom.contactSecret = originalContactSecret;
     wecom.corpSecret = originalCorpSecret;
+    wecom.contactSecretUserListDenied = originalContactSecretUserListDenied;
+  }
+});
+
+test('listUsersByDepartment 在 contact 命中 48009 后，后续查询应跳过 contact secret', async () => {
+  const getCalls = [];
+  const tokenCalls = [];
+  const originalContactSecret = wecom.contactSecret;
+  const originalCorpSecret = wecom.corpSecret;
+  const originalContactSecretUserListDenied = wecom.contactSecretUserListDenied;
+  wecom.contactSecret = 'contact-secret-for-test';
+  wecom.corpSecret = 'default-secret-for-test';
+  wecom.contactSecretUserListDenied = false;
+
+  try {
+    await withStub(
+      wecom,
+      'getAccessToken',
+      async (options = {}) => {
+        tokenCalls.push(options);
+        if (options.cacheKey === 'contact') {
+          return 'contact_token';
+        }
+        return 'default_token';
+      },
+      async () => {
+        await withStub(
+          axios,
+          'get',
+          async (url) => {
+            getCalls.push({ url });
+            if (url.includes('access_token=contact_token')) {
+              return {
+                data: {
+                  errcode: 48009,
+                  errmsg: 'api forbidden for contact assistant',
+                  userlist: [],
+                },
+              };
+            }
+
+            return {
+              data: {
+                errcode: 0,
+                errmsg: 'ok',
+                userlist: [{ userid: 'JiaWei', name: '贾伟' }],
+              },
+            };
+          },
+          async () => {
+            const firstResult = await wecom.listUsersByDepartment(1, 1, 0);
+            const secondResult = await wecom.listUsersByDepartment(1, 1, 0);
+
+            assert.equal(firstResult.errcode, 0);
+            assert.equal(secondResult.errcode, 0);
+            assert.equal(wecom.contactSecretUserListDenied, true);
+            assert.equal(tokenCalls.length, 3);
+            assert.equal(tokenCalls[0].cacheKey, 'contact');
+            assert.equal(tokenCalls[1].cacheKey, 'default');
+            assert.equal(tokenCalls[2].cacheKey, 'default');
+            assert.equal(getCalls.length, 3);
+            assert.equal(getCalls[0].url.includes('access_token=contact_token'), true);
+            assert.equal(getCalls[1].url.includes('access_token=default_token'), true);
+            assert.equal(getCalls[2].url.includes('access_token=default_token'), true);
+          }
+        );
+      }
+    );
+  } finally {
+    wecom.contactSecret = originalContactSecret;
+    wecom.corpSecret = originalCorpSecret;
+    wecom.contactSecretUserListDenied = originalContactSecretUserListDenied;
   }
 });

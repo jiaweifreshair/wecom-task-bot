@@ -1,0 +1,36 @@
+# 依赖目录
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# 环境变量（含真实密钥，禁止提交）
+backend/.env
+.env
+.env.local
+.env.*.local
+
+# 数据库文件（运行时数据）
+backend/database/*.db
+backend/database/*.db-shm
+backend/database/*.db-wal
+
+# 前端构建产物
+frontend/dist/
+frontend/.vite/
+
+# 日志
+log/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude 本地配置
+.claude/settings.local.json

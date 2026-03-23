@@ -8,6 +8,7 @@ const path = require('path');
 const testDbPath = path.resolve(__dirname, '../database/tasks.test.db');
 
 process.env.NODE_ENV = 'test';
+process.env.TASK_BOT_DB_CLIENT = 'sqlite';
 process.env.TASK_BOT_DB_PATH = testDbPath;
 fs.mkdirSync(path.dirname(testDbPath), { recursive: true });
 

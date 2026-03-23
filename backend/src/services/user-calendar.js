@@ -112,6 +112,11 @@ const createUserCalendarService = (dependencies = {}) => {
     const userId = normalizeText(options.userId);
     const userName = normalizeText(options.userName);
     const source = normalizeText(options.source) || 'auth_callback';
+    // forceEnsure
+    // 是什么：显式确保开关。
+    // 做什么：允许调用方在“页面确保个人日历”等强业务场景下跳过登录建历开关限制。
+    // 为什么：登录回调与日历页确保属于不同入口，后者应保证“已有复用、缺失补齐”稳定成立。
+    const forceEnsure = Boolean(options.forceEnsure);
     const autoCreateEnabled = parseBooleanFlag(process.env.AUTO_CREATE_USER_CALENDAR_ON_LOGIN, true);
 
     if (!userId) {
@@ -121,7 +126,7 @@ const createUserCalendarService = (dependencies = {}) => {
       };
     }
 
-    if (!autoCreateEnabled) {
+    if (!autoCreateEnabled && !forceEnsure) {
       return {
         ensured: false,
         reason: 'auto_create_disabled',
@@ -209,4 +214,3 @@ module.exports = {
   createUserCalendarService,
   userCalendarService,
 };
-

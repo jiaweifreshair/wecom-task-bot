@@ -93,10 +93,27 @@ const getSql = async <TRow extends Record<string, unknown>>(sql: string, params:
 const resetE2eDatabase = async () => {
   await runSql('DELETE FROM tasks');
   await runSql('DELETE FROM user_calendar_map');
+  await runSql('DELETE FROM platform_user_access');
   await runSql('DELETE FROM wecom_contact_users');
   await runSql('DELETE FROM wecom_contact_departments');
   await runSql('DELETE FROM wecom_contact_tags');
   await runSql('DELETE FROM wecom_contact_event_log');
+};
+
+// upsertPlatformAccess
+// 是什么：E2E 平台角色写入函数。
+// 做什么：为测试账号写入平台权限表，确保后端 `/user/me` 与 JWT 角色保持一致。
+// 为什么：新版本权限以数据库为准，仅写 token 已不足以驱动管理员/执行对象菜单分支。
+const upsertPlatformAccess = async (userId: string, role: 'ADMIN' | 'EXECUTOR') => {
+  await runSql(
+    `INSERT INTO platform_user_access (user_id, platform_role, updated_by_userid, updated_at)
+     VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET
+       platform_role = excluded.platform_role,
+       updated_by_userid = excluded.updated_by_userid,
+       updated_at = datetime('now')`,
+    [userId, role, 'playwright']
+  );
 };
 
 // upsertCalendarMapping
@@ -148,7 +165,7 @@ const buildAuthToken = (options: AuthTokenOptions = {}) => {
       userid: options.userid || E2E_USER_ID,
       name: options.name || E2E_USER_NAME,
       avatar: options.avatar || '',
-      role: options.role || 'EXECUTOR',
+      role: options.role || 'MANAGER',
     },
     process.env.JWT_SECRET || 'wecom-task-bot-secret',
     { expiresIn: '24h' }
@@ -361,6 +378,10 @@ const buildCalendarSchedulesPayload = (
 const gotoAuthedApp = async (page: Page, tokenOptions: AuthTokenOptions = {}) => {
   const token = buildAuthToken(tokenOptions);
   const expectedUserName = tokenOptions.name || E2E_USER_NAME;
+  const targetUserId = tokenOptions.userid || E2E_USER_ID;
+  const targetPlatformRole = (tokenOptions.role || 'MANAGER') === 'MANAGER' ? 'ADMIN' : 'EXECUTOR';
+
+  await upsertPlatformAccess(targetUserId, targetPlatformRole);
 
   await page.goto(`/?token=${token}`);
   await expect(page.getByText(expectedUserName)).toBeVisible();
@@ -445,8 +466,8 @@ test('仪表盘与团队统计应反映任务统计数据', async ({ page }) => 
 
   await page.locator('aside').getByRole('button', { name: '团队统计' }).click({ force: true });
   await expect(page.getByText('团队统计看板')).toBeVisible();
-  await expect(page.locator('body')).toContainText('管理岗位看板');
-  await expect(page.locator('body')).toContainText('执行岗位看板');
+  await expect(page.locator('body')).toContainText('管理员看板');
+  await expect(page.locator('body')).toContainText('成员看板');
   await expect(page.locator('body')).toContainText(E2E_USER_ID);
   await expect(page.locator('body')).toContainText('未设置岗位');
 });
@@ -528,6 +549,10 @@ test('日历页应支持降级提示、迷你月历收起、桌面分屏及设�
   await expect(page.locator('[data-testid="mini-calendar-body"]')).toBeVisible();
 
   await page.locator('aside').getByRole('button', { name: '系统设置' }).click({ force: true });
+  await expect(page.getByRole('heading', { name: '系统设置' })).toBeVisible();
+  await page.getByRole('button', { name: 'EN' }).click({ force: true });
+  await expect(page.getByRole('heading', { name: 'System Settings' })).toBeVisible();
+  await page.getByRole('button', { name: '中文' }).click({ force: true });
   await expect(page.getByRole('heading', { name: '系统设置' })).toBeVisible();
   await page.locator('select').first().selectOption('en');
   await page.getByRole('button', { name: '保存设置' }).click({ force: true });
@@ -659,6 +684,203 @@ test('管理者应自动确保个人日历并隐藏原日历管理面板', async
   expect(leftColumnBox).not.toBeNull();
   expect(mainCalendarDayBox).not.toBeNull();
   expect((mainCalendarDayBox?.x || 0) - (leftColumnBox?.x || 0)).toBeGreaterThan(180);
+});
+
+test('执行对象在日历页只应看到自己相关的日程，并且只能编辑自己创建的日程', async ({ page }) => {
+  await page.route(/\/api\/tasks(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildTaskListPayload([])),
+    });
+  });
+
+  await page.route('**/api/calendar/mappings**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        mappings: [
+          {
+            user_id: E2E_USER_ID,
+            cal_id: 'cal-executor-e2e',
+            calendar_summary: '执行对象个人日历',
+            source: 'e2e_seed',
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/users**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        errcode: 0,
+        errmsg: 'ok',
+        userlist: [
+          { userid: E2E_USER_ID, name: E2E_USER_NAME },
+          { userid: 'manager-user', name: '管理员甲' },
+          { userid: 'wangwu', name: '王五' },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/calendar/*/schedules**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        errcode: 0,
+        schedule_list: [
+          {
+            schedule_id: 'sch-owned',
+            cal_id: 'cal-executor-e2e',
+            summary: '我自己创建的日程',
+            description: '执行对象自建',
+            start_time: 1773190800,
+            end_time: 1773194400,
+            organizer: { userid: E2E_USER_ID },
+            attendees: [{ userid: E2E_USER_ID }],
+          },
+          {
+            schedule_id: 'sch-assigned',
+            cal_id: 'cal-executor-e2e',
+            summary: '别人创建但分配给我的日程',
+            description: '管理员安排我执行',
+            start_time: 1773198000,
+            end_time: 1773201600,
+            organizer: { userid: 'manager-user' },
+            attendees: [{ userid: E2E_USER_ID }],
+          },
+          {
+            schedule_id: 'sch-irrelevant',
+            cal_id: 'cal-executor-e2e',
+            summary: '与我无关的日程',
+            description: '不应展示给执行对象',
+            start_time: 1773205200,
+            end_time: 1773208800,
+            organizer: { userid: 'manager-user' },
+            attendees: [{ userid: 'wangwu' }],
+          },
+        ],
+      }),
+    });
+  });
+
+  await gotoAuthedApp(page, {
+    role: 'EXECUTOR',
+    name: '执行对象回归用户',
+  });
+  await expect(page.locator('aside')).not.toContainText('EXECUTOR');
+  await expect(page.locator('aside')).not.toContainText('MANAGER');
+
+  await page.locator('aside').getByRole('button', { name: '日历日程' }).click({ force: true });
+  await expect(page.getByText('日历与日程管理')).toBeVisible();
+
+  const calendarMainColumn = page.locator('[data-testid="calendar-main-column"]');
+  const sidePanel = page.locator('[data-testid="calendar-side-panel"]');
+
+  await expect(calendarMainColumn.getByRole('button', { name: '我自己创建的日程', exact: true })).toBeVisible();
+  await expect(
+    calendarMainColumn.getByRole('button', { name: '别人创建但分配给我的日程', exact: true })
+  ).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('与我无关的日程');
+
+  await calendarMainColumn.getByRole('button', { name: '别人创建但分配给我的日程', exact: true }).click({ force: true });
+  await expect(sidePanel.getByRole('heading', { name: '编辑：别人创建但分配给我的日程' })).toBeVisible();
+  await expect(sidePanel.getByText('当前日程由其他人创建，你可以查看执行安排，但不能编辑或删除。')).toBeVisible();
+  await expect(sidePanel.getByRole('button', { name: '更新当前日程' })).toBeDisabled();
+  await expect(sidePanel.getByRole('button', { name: '取消日程' })).toBeDisabled();
+  await expect(sidePanel.getByRole('button', { name: '添加所选参与人' })).toBeDisabled();
+  await expect(sidePanel.getByRole('button', { name: '移除所选参与人' })).toBeDisabled();
+
+  await calendarMainColumn.getByRole('button', { name: '我自己创建的日程', exact: true }).click({ force: true });
+  await expect(sidePanel.getByRole('heading', { name: '编辑：我自己创建的日程' })).toBeVisible();
+  await expect(sidePanel.getByRole('button', { name: '更新当前日程' })).toBeEnabled();
+  await expect(sidePanel.getByRole('button', { name: '取消日程' })).toBeEnabled();
+});
+
+test('创建日程时结束时间必须严格晚于开始时间', async ({ page }) => {
+  let createScheduleCallCount = 0;
+
+  await page.route(/\/api\/tasks(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildTaskListPayload([])),
+    });
+  });
+
+  await page.route('**/api/calendar/mappings**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        mappings: [
+          {
+            user_id: E2E_USER_ID,
+            cal_id: 'cal-time-check',
+            calendar_summary: '时间校验日历',
+            source: 'e2e_seed',
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route('**/api/users**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        errcode: 0,
+        errmsg: 'ok',
+        userlist: [{ userid: E2E_USER_ID, name: E2E_USER_NAME }],
+      }),
+    });
+  });
+
+  await page.route('**/api/calendar/*/schedules**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        errcode: 0,
+        schedule_list: [],
+      }),
+    });
+  });
+
+  await page.route('**/api/schedule/create', async (route) => {
+    createScheduleCallCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        errcode: 0,
+        errmsg: 'ok',
+        schedule_id: 'sch-time-check',
+      }),
+    });
+  });
+
+  await gotoAuthedApp(page);
+  await page.locator('aside').getByRole('button', { name: '日历日程' }).click({ force: true });
+  await expect(page.getByText('日历与日程管理')).toBeVisible();
+
+  const sidePanel = page.locator('[data-testid="calendar-side-panel"]');
+  const timeInputs = sidePanel.locator('input[type="datetime-local"]');
+  const createButton = sidePanel.getByRole('button', { name: /为 .* 创建日程/ });
+
+  await timeInputs.nth(0).fill('2026-03-23T10:00');
+  await timeInputs.nth(1).fill('2026-03-23T09:00');
+
+  await expect(sidePanel.getByText('结束时间必须晚于开始时间，且不能与开始时间相同。')).toBeVisible();
+  await expect(createButton).toBeDisabled();
+  await expect.poll(() => createScheduleCallCount).toBe(0);
 });
 
 test('日历工作项应允许不同负责人同时间重叠，并立即联动任务、仪表盘与团队统计', async ({ page }) => {

@@ -11,6 +11,7 @@ import {
   X,
   Globe,
   LogIn,
+  LogOut,
   RefreshCw,
 } from 'lucide-react';
 import { KPIStats, Task, TaskCreatePayload, TaskStatus } from './types';
@@ -57,12 +58,20 @@ const mapTaskRowToTask = (row: BackendTaskRow): Task => {
       name: row.creator_userid || '未知发起人',
       avatar: '',
       role: 'MANAGER',
+      platformRole: 'ADMIN',
+      isAdmin: true,
+      isSuperAdmin: false,
+      menuPermissions: ['DASHBOARD', 'TASKS', 'CALENDAR', 'TEAM_STATS', 'SETTINGS'],
     },
     executor: {
       id: row.executor_userid || 'unknown-executor',
       name: row.executor_userid || '未知执行人',
       avatar: '',
       role: 'EXECUTOR',
+      platformRole: 'EXECUTOR',
+      isAdmin: false,
+      isSuperAdmin: false,
+      menuPermissions: ['TASKS', 'CALENDAR'],
     },
     startTime: row.start_time,
     endTime: row.end_time,
@@ -112,7 +121,7 @@ const buildQrLoginUrl = () => {
 };
 
 const MainApp: React.FC = () => {
-  const { user, loading: authLoading, login } = useAuth();
+  const { user, loading: authLoading, login, logout } = useAuth();
   const [currentView, setCurrentView] = useState<View>('DASHBOARD');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -123,14 +132,24 @@ const MainApp: React.FC = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const { t, language, setLanguage } = useTranslation();
 
-  const loadTasks = useCallback(async (options: { throwOnError?: boolean } = {}) => {
+  const canViewDashboard = Boolean(user?.menuPermissions.includes('DASHBOARD'));
+  const canViewTasks = Boolean(user?.menuPermissions.includes('TASKS'));
+  const canViewCalendar = Boolean(user?.menuPermissions.includes('CALENDAR'));
+  const canViewTeamStats = Boolean(user?.menuPermissions.includes('TEAM_STATS'));
+  const canViewSettings = Boolean(user?.menuPermissions.includes('SETTINGS'));
+  const canTriggerSync = canViewSettings;
+
+  const loadTasks = useCallback(async (options: { throwOnError?: boolean; background?: boolean } = {}) => {
     if (!user) {
       setTasks([]);
       setKpi(emptyKpi);
       return;
     }
 
-    setLoadingTasks(true);
+    const shouldShowGlobalLoading = options.background !== true;
+    if (shouldShowGlobalLoading) {
+      setLoadingTasks(true);
+    }
     try {
       const response = await getTasks();
       setTasks((response.tasks || []).map(mapTaskRowToTask));
@@ -143,7 +162,9 @@ const MainApp: React.FC = () => {
         throw error;
       }
     } finally {
-      setLoadingTasks(false);
+      if (shouldShowGlobalLoading) {
+        setLoadingTasks(false);
+      }
     }
   }, [user]);
 
@@ -156,6 +177,38 @@ const MainApp: React.FC = () => {
       setKpi(emptyKpi);
     }
   }, [user, loadTasks]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const viewAccessMap: Record<View, boolean> = {
+      DASHBOARD: canViewDashboard,
+      TASKS: canViewTasks,
+      CALENDAR: canViewCalendar,
+      TEAM: canViewTeamStats,
+      SETTINGS: canViewSettings,
+    };
+
+    if (viewAccessMap[currentView]) {
+      return;
+    }
+
+    if (canViewTasks) {
+      setCurrentView('TASKS');
+      return;
+    }
+
+    if (canViewCalendar) {
+      setCurrentView('CALENDAR');
+      return;
+    }
+
+    if (canViewDashboard) {
+      setCurrentView('DASHBOARD');
+    }
+  }, [canViewCalendar, canViewDashboard, canViewSettings, canViewTasks, canViewTeamStats, currentView, user]);
 
   const handleCreateTask = async (payload: TaskCreatePayload) => {
     try {
@@ -342,14 +395,16 @@ const MainApp: React.FC = () => {
         </div>
 
         <div className="p-4 space-y-1">
-          <NavItem view="DASHBOARD" icon={LayoutDashboard} label={t.dashboard} />
-          <NavItem view="TASKS" icon={CheckSquare} label={t.taskList} />
-          <NavItem view="CALENDAR" icon={CalendarDays} label={t.calendarManage} />
-          <NavItem view="TEAM" icon={Users} label={t.teamStats} />
-          <div className="pt-4 mt-4 border-t border-slate-800">
-            <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t.system}</p>
-            <NavItem view="SETTINGS" icon={Settings} label={t.settings} />
-          </div>
+          {canViewDashboard && <NavItem view="DASHBOARD" icon={LayoutDashboard} label={t.dashboard} />}
+          {canViewTasks && <NavItem view="TASKS" icon={CheckSquare} label={t.taskList} />}
+          {canViewCalendar && <NavItem view="CALENDAR" icon={CalendarDays} label={t.calendarManage} />}
+          {canViewTeamStats && <NavItem view="TEAM" icon={Users} label={t.teamStats} />}
+          {canViewSettings && (
+            <div className="pt-4 mt-4 border-t border-slate-800">
+              <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t.system}</p>
+              <NavItem view="SETTINGS" icon={Settings} label={t.settings} />
+            </div>
+          )}
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-slate-900/50">
@@ -361,8 +416,14 @@ const MainApp: React.FC = () => {
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user.role}</p>
             </div>
+            <button
+              onClick={logout}
+              title={t.logout}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors shrink-0"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -412,14 +473,16 @@ const MainApp: React.FC = () => {
               {language === 'zh' ? 'EN' : '中文'}
             </button>
 
-            <button
-              onClick={handleSyncTasks}
-              disabled={syncing}
-              className="flex items-center gap-2 p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline text-sm">{t.syncNow}</span>
-            </button>
+            {canTriggerSync && (
+              <button
+                onClick={handleSyncTasks}
+                disabled={syncing}
+                className="flex items-center gap-2 p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
+                <span className="hidden md:inline text-sm">{t.syncNow}</span>
+              </button>
+            )}
 
             <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
               <Bell className="w-5 h-5" />
@@ -440,14 +503,17 @@ const MainApp: React.FC = () => {
                 {currentView === 'TASKS' && (
                   <Tasks
                     tasks={tasks}
+                    canCreateTask={Boolean(user?.isAdmin)}
                     onCreateTask={handleCreateTask}
                     onCompleteTask={handleCompleteTask}
                     onVerifyTask={handleVerifyTask}
                   />
                 )}
-                {currentView === 'CALENDAR' && <CalendarManager />}
+                {currentView === 'CALENDAR' && (
+                  <CalendarManager onTaskDataChanged={() => loadTasks({ background: true })} />
+                )}
                 {currentView === 'TEAM' && <TeamStats tasks={tasks} />}
-                {currentView === 'SETTINGS' && <SettingsPage onSyncTasks={handleSyncTasks} />}
+                {currentView === 'SETTINGS' && <SettingsPage onSyncTasks={handleSyncTasks} currentUser={user} />}
               </>
             )}
           </div>

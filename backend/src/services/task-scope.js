@@ -1,4 +1,5 @@
 const { normalizeText } = require('./task-lifecycle');
+const { PLATFORM_ROLE, isAdminRole, normalizePlatformRole } = require('./platform-access');
 
 // TASK_QUERY_SCOPE
 // 是什么：任务查询视角枚举常量。
@@ -56,19 +57,23 @@ const isGlobalVerifierUser = (currentUserId, globalVerifiers = []) => {
 // 为什么：将权限判断从路由抽离，保证任务列表与 KPI 接口使用同一策略，降低偏差风险。
 const resolveTaskQueryScope = (options = {}) => {
   const currentUserId = normalizeText(options.currentUserId);
+  const currentUserPlatformRole = normalizePlatformRole(options.currentUserPlatformRole);
   const normalizedGlobalVerifiers = (Array.isArray(options.globalVerifiers) ? options.globalVerifiers : [])
     .map((item) => normalizeText(item))
     .filter(Boolean);
   const requestedScope = normalizeScopeValue(options.requestedScope);
   const hasGlobalVerifierConfig = normalizedGlobalVerifiers.length > 0;
   const userIsGlobalVerifier = isGlobalVerifierUser(currentUserId, normalizedGlobalVerifiers);
-  const teamScopeAllowed = !hasGlobalVerifierConfig || userIsGlobalVerifier;
+  const currentUserIsAdmin = isAdminRole(currentUserPlatformRole);
+  const teamScopeAllowed = currentUserIsAdmin || !hasGlobalVerifierConfig || userIsGlobalVerifier;
 
   if (requestedScope === TASK_QUERY_SCOPE.SELF) {
     return {
       restrictToCurrentUser: true,
       resolvedScope: TASK_QUERY_SCOPE.SELF,
       userIsGlobalVerifier,
+      currentUserIsAdmin,
+      currentUserPlatformRole: currentUserPlatformRole || PLATFORM_ROLE.EXECUTOR,
       teamScopeAllowed,
     };
   }
@@ -78,6 +83,8 @@ const resolveTaskQueryScope = (options = {}) => {
       restrictToCurrentUser: !teamScopeAllowed,
       resolvedScope: teamScopeAllowed ? TASK_QUERY_SCOPE.TEAM : TASK_QUERY_SCOPE.SELF,
       userIsGlobalVerifier,
+      currentUserIsAdmin,
+      currentUserPlatformRole: currentUserPlatformRole || PLATFORM_ROLE.EXECUTOR,
       teamScopeAllowed,
     };
   }
@@ -86,6 +93,8 @@ const resolveTaskQueryScope = (options = {}) => {
     restrictToCurrentUser: !teamScopeAllowed,
     resolvedScope: teamScopeAllowed ? TASK_QUERY_SCOPE.TEAM : TASK_QUERY_SCOPE.SELF,
     userIsGlobalVerifier,
+    currentUserIsAdmin,
+    currentUserPlatformRole: currentUserPlatformRole || PLATFORM_ROLE.EXECUTOR,
     teamScopeAllowed,
   };
 };

@@ -15,6 +15,24 @@ const {
 const { resolveTaskQueryScope } = require('../services/task-scope');
 const { resolveAuthLoginMode, buildAuthLoginRedirectUrl } = require('../services/auth-login-url');
 const { userCalendarService } = require('../services/user-calendar');
+const {
+  PLATFORM_ROLE,
+  PLATFORM_MENU,
+  normalizePlatformRole,
+  normalizeMenuPermissionList,
+  isAdminRole,
+  getEffectivePlatformAccess,
+  upsertPlatformAccessRow,
+  updatePlatformMenuPermissions,
+  parseBootstrapSuperAdminIds,
+  buildMenuPermissionsByRole,
+  resolvePlatformRoleMap,
+} = require('../services/platform-access');
+const {
+  pullAllContactsToLocalSnapshot,
+  listSystemUsers,
+  listSystemDepartments,
+} = require('../services/contact-directory');
 const { logWithTrace, createTraceId } = require('../utils/logger');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'wecom-task-bot-secret';
@@ -33,7 +51,7 @@ const authenticateToken = (req, res, next) => {
     return res.sendStatus(401);
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, async (err, user) => {
     if (err) {
       logWithTrace(traceId, 'api', 'auth.jwt.reject', {
         reason: 'invalid_token',
@@ -44,15 +62,125 @@ const authenticateToken = (req, res, next) => {
       return res.sendStatus(403);
     }
 
-    req.user = user;
-    logWithTrace(traceId, 'api', 'auth.jwt.pass', {
-      userid: user.userid,
-      path: req.originalUrl,
-      method: req.method,
-    });
+    try {
+      const access = await getEffectivePlatformAccess(user && user.userid);
+      const tokenPlatformRole = normalizePlatformRole(
+        (user && user.platform_role) || (normalizeText(user && user.role).toUpperCase() === 'MANAGER' ? 'ADMIN' : '')
+      );
+      const effectivePlatformRole =
+        access.source === 'default_executor' && tokenPlatformRole ? tokenPlatformRole : access.platform_role;
+      const effectiveIsAdmin = isAdminRole(effectivePlatformRole);
+      const effectiveMenuPermissions =
+        effectivePlatformRole === access.platform_role
+          ? access.menu_permissions
+          : buildMenuPermissionsByRole(effectivePlatformRole);
+      req.user = {
+        ...user,
+        platform_role: effectivePlatformRole,
+        role: effectiveIsAdmin ? 'MANAGER' : 'EXECUTOR',
+        is_super_admin: effectivePlatformRole === PLATFORM_ROLE.SUPER_ADMIN,
+        is_admin: effectiveIsAdmin,
+        menu_permissions: effectiveMenuPermissions,
+      };
 
-    next();
+      logWithTrace(traceId, 'api', 'auth.jwt.pass', {
+        userid: user.userid,
+        platformRole: effectivePlatformRole,
+        path: req.originalUrl,
+        method: req.method,
+      });
+
+      next();
+    } catch (accessError) {
+      logWithTrace(traceId, 'api', 'auth.jwt.access_error', {
+        userid: user && user.userid,
+        message: accessError.message,
+        path: req.originalUrl,
+        method: req.method,
+      });
+      res.sendStatus(500);
+    }
   });
+};
+
+// requireAdmin
+// 是什么：管理员权限校验中间件。
+// 做什么：仅允许平台管理员和超级管理员访问目标接口。
+// 为什么：任务管理、团队统计和系统设置均属于管理能力，不应对执行对象开放。
+const requireAdmin = (req, res, next) => {
+  if (req.user && req.user.is_admin) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    code: 'ADMIN_PERMISSION_REQUIRED',
+    message: '当前用户缺少管理员权限',
+  });
+};
+
+// requireSuperAdmin
+// 是什么：超级管理员校验中间件。
+// 做什么：仅允许超级管理员修改平台角色分配。
+// 为什么：平台权限和菜单控制属于系统级能力，需由超级管理员统一维护。
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user && req.user.is_super_admin) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    code: 'SUPER_ADMIN_PERMISSION_REQUIRED',
+    message: '当前用户缺少超级管理员权限',
+  });
+};
+
+// hasMenuPermission
+// 是什么：菜单权限判定函数。
+// 做什么：判断当前登录用户是否拥有指定菜单键对应的访问权限。
+// 为什么：平台已支持按用户裁剪菜单，后端接口也必须复用同一套权限口径。
+const hasMenuPermission = (user = {}, menuPermission) => {
+  const normalizedMenuPermission = normalizeText(menuPermission).toUpperCase();
+  if (!normalizedMenuPermission) {
+    return false;
+  }
+
+  const resolvedPlatformRole =
+    normalizePlatformRole(user && user.platform_role) ||
+    (user && user.is_super_admin
+      ? PLATFORM_ROLE.SUPER_ADMIN
+      : user && user.is_admin
+      ? PLATFORM_ROLE.ADMIN
+      : PLATFORM_ROLE.EXECUTOR);
+  const menuPermissions =
+    Array.isArray(user && user.menu_permissions) && user.menu_permissions.length > 0
+      ? user.menu_permissions
+      : buildMenuPermissionsByRole(resolvedPlatformRole);
+
+  return menuPermissions
+    .map((item) => normalizeText(item).toUpperCase())
+    .includes(normalizedMenuPermission);
+};
+
+// requireMenuPermission
+// 是什么：菜单权限校验中间件工厂函数。
+// 做什么：仅允许拥有指定菜单键的用户访问目标接口。
+// 为什么：若只在前端隐藏菜单，仍会留下直接调接口越权的空间，必须在服务端同步收口。
+const requireMenuPermission = (menuPermission) => {
+  const normalizedMenuPermission = normalizeText(menuPermission).toUpperCase();
+
+  return (req, res, next) => {
+    if (hasMenuPermission(req.user, normalizedMenuPermission)) {
+      next();
+      return;
+    }
+
+    res.status(403).json({
+      code: 'MENU_PERMISSION_REQUIRED',
+      message: '当前用户缺少目标菜单权限',
+      menu_permission: normalizedMenuPermission,
+    });
+  };
 };
 
 const allSql = (sql, params = []) => {
@@ -337,6 +465,307 @@ const parsePositiveInteger = (value, fallbackValue, maxValue) => {
   return Math.min(normalized, maxValue);
 };
 
+// buildApiUserProfile
+// 是什么：登录用户接口返回模型构建函数。
+// 做什么：把鉴权上下文整理为前端可直接消费的身份与菜单权限结构。
+// 为什么：前端菜单和页面权限必须依赖同一份后端鉴权结果，而不是自行推断。
+const buildApiUserProfile = (user = {}) => {
+  const platformRole = normalizePlatformRole(user && user.platform_role) || PLATFORM_ROLE.EXECUTOR;
+
+  return {
+    userid: normalizeText(user && user.userid),
+    name: normalizeText(user && user.name),
+    avatar: normalizeText(user && user.avatar),
+    role: normalizeText(user && user.role) || (isAdminRole(platformRole) ? 'MANAGER' : 'EXECUTOR'),
+    platform_role: platformRole,
+    is_admin: Boolean(user && user.is_admin),
+    is_super_admin: Boolean(user && user.is_super_admin),
+    menu_permissions: Array.isArray(user && user.menu_permissions)
+      ? user.menu_permissions
+      : buildMenuPermissionsByRole(platformRole),
+  };
+};
+
+// canUserAccessTaskRow
+// 是什么：任务行可见性判断函数。
+// 做什么：管理员默认可见全部任务，执行对象仅可见与自己相关的任务。
+// 为什么：任务列表、详情和统计必须复用同一可见性口径，避免权限漂移。
+const canUserAccessTaskRow = (task, user = {}) => {
+  if (user && user.is_admin) {
+    return true;
+  }
+
+  const currentUserId = normalizeText(user && user.userid);
+  if (!currentUserId) {
+    return false;
+  }
+
+  return (
+    normalizeText(task && task.owner_userid) === currentUserId ||
+    normalizeText(task && task.executor_userid) === currentUserId ||
+    normalizeText(task && task.creator_userid) === currentUserId
+  );
+};
+
+// getUserCalendarMappingRow
+// 是什么：用户日历映射读取函数。
+// 做什么：按 user_id 获取当前用户绑定的个人日历信息。
+// 为什么：执行对象访问日历相关接口时，必须限定在自己的个人日历范围内。
+const getUserCalendarMappingRow = async (userId) => {
+  const normalizedUserId = normalizeText(userId);
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  return getSql(
+    `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at
+       FROM user_calendar_map
+      WHERE user_id = ?
+      LIMIT 1`,
+    [normalizedUserId]
+  );
+};
+
+// extractScheduleCalId
+// 是什么：日程归属日历提取函数。
+// 做什么：从企微日程对象中兼容读取 `cal_id/calendar_id`。
+// 为什么：不同接口返回字段命名不完全一致，权限判断不能依赖单一字段。
+const extractScheduleCalId = (schedule = {}) => {
+  return normalizeText((schedule && schedule.cal_id) || (schedule && schedule.calendar_id));
+};
+
+// extractScheduleOwnerUserId
+// 是什么：日程创建人账号提取函数。
+// 做什么：从企微日程结构中兼容读取 `organizer.userid` 或扁平 `organizer` 字段。
+// 为什么：成员编辑权限取决于“是否由自己创建”，需要稳定拿到组织者账号。
+const extractScheduleOwnerUserId = (schedule = {}) => {
+  return normalizeText((schedule && schedule.organizer && schedule.organizer.userid) || (schedule && schedule.organizer));
+};
+
+// extractScheduleAttendeeUserIds
+// 是什么：日程参与人账号提取函数。
+// 做什么：从 `attendees` 数组中提取并去重全部内部成员账号。
+// 为什么：执行对象只应看到与自己相关的日程，必须基于参与人列表做判断。
+const extractScheduleAttendeeUserIds = (schedule = {}) => {
+  const attendees = Array.isArray(schedule && schedule.attendees) ? schedule.attendees : [];
+  return Array.from(
+    new Set(
+      attendees
+        .map((item) => normalizeText((item && item.userid) || item))
+        .filter(Boolean)
+    )
+  );
+};
+
+// canUserViewSchedule
+// 是什么：日程查看权限判定函数。
+// 做什么：管理员默认放行，普通成员仅允许查看自己创建或自己参与执行的日程。
+// 为什么：成员日历不应暴露与自己无关的排期，但仍需要看到上级分配给自己的执行事项。
+const canUserViewSchedule = (user = {}, schedule = {}) => {
+  const platformRole = normalizePlatformRole(user && user.platform_role);
+  if (!platformRole || (user && user.is_admin)) {
+    return true;
+  }
+
+  const currentUserId = normalizeText(user && user.userid);
+  if (!currentUserId) {
+    return false;
+  }
+
+  if (extractScheduleOwnerUserId(schedule) === currentUserId) {
+    return true;
+  }
+
+  return extractScheduleAttendeeUserIds(schedule).includes(currentUserId);
+};
+
+// canUserMutateSchedule
+// 是什么：日程编辑权限判定函数。
+// 做什么：管理员默认放行，普通成员仅允许修改或删除自己创建的日程。
+// 为什么：被分配执行不代表可改排期，避免成员误删或改动他人创建的工作安排。
+const canUserMutateSchedule = (user = {}, schedule = {}) => {
+  const platformRole = normalizePlatformRole(user && user.platform_role);
+  if (!platformRole || (user && user.is_admin)) {
+    return true;
+  }
+
+  const currentUserId = normalizeText(user && user.userid);
+  if (!currentUserId) {
+    return false;
+  }
+
+  return extractScheduleOwnerUserId(schedule) === currentUserId;
+};
+
+// validateScheduleTimeRange
+// 是什么：日程时间区间校验函数。
+// 做什么：校验开始/结束时间是否同时提供且满足“结束严格晚于开始”。
+// 为什么：前端校验可被绕过，接口层必须阻止非法时间区间进入企微和本地任务链路。
+const validateScheduleTimeRange = (schedule = {}, options = {}) => {
+  const requireBoth = Boolean(options && options.requireBoth);
+  const hasStartTime = Object.prototype.hasOwnProperty.call(schedule || {}, 'start_time');
+  const hasEndTime = Object.prototype.hasOwnProperty.call(schedule || {}, 'end_time');
+
+  if (!hasStartTime && !hasEndTime) {
+    return requireBoth
+      ? {
+          valid: false,
+          message: '开始时间和结束时间必须同时提供。',
+        }
+      : {
+          valid: true,
+          message: '',
+        };
+  }
+
+  if (!hasStartTime || !hasEndTime) {
+    return {
+      valid: false,
+      message: '开始时间和结束时间必须同时提供。',
+    };
+  }
+
+  const startTime = Number(schedule.start_time);
+  const endTime = Number(schedule.end_time);
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || startTime <= 0 || endTime <= 0) {
+    return {
+      valid: false,
+      message: '开始时间和结束时间必须为有效的秒级时间戳。',
+    };
+  }
+
+  if (endTime <= startTime) {
+    return {
+      valid: false,
+      message: '结束时间必须晚于开始时间。',
+    };
+  }
+
+  return {
+    valid: true,
+    message: '',
+  };
+};
+
+// ensureCalendarScopeAllowed
+// 是什么：日历访问范围校验函数。
+// 做什么：管理员直接放行，执行对象仅允许访问自己绑定的日历。
+// 为什么：执行对象虽然可使用日历功能，但不应查看或操作他人的个人日历。
+const ensureCalendarScopeAllowed = async (req, res, targetCalId) => {
+  const hasResolvedPlatformRole = Boolean(normalizePlatformRole(req.user && req.user.platform_role));
+  if (!hasResolvedPlatformRole || (req.user && req.user.is_admin)) {
+    return true;
+  }
+
+  const normalizedTargetCalId = normalizeText(targetCalId);
+  const currentUserMapping = await getUserCalendarMappingRow(req.user && req.user.userid);
+  const allowedCalId = normalizeText(currentUserMapping && currentUserMapping.cal_id);
+
+  if (normalizedTargetCalId && allowedCalId && normalizedTargetCalId === allowedCalId) {
+    return true;
+  }
+
+  res.status(403).json({
+    code: 'CALENDAR_SCOPE_FORBIDDEN',
+    message: '执行对象仅可访问自己的日历',
+  });
+  return false;
+};
+
+// ensureScheduleScopeAllowed
+// 是什么：日程访问范围校验函数。
+// 做什么：管理员直接放行，执行对象则通过日程详情反查所属日历后校验范围。
+// 为什么：日程更新/删除接口只带 `schedule_id`，必须先解析其归属日历再做授权。
+const ensureScheduleScopeAllowed = async (req, res, scheduleId) => {
+  const hasResolvedPlatformRole = Boolean(normalizePlatformRole(req.user && req.user.platform_role));
+  if (!hasResolvedPlatformRole || (req.user && req.user.is_admin)) {
+    return true;
+  }
+
+  const result = await wecom.getSchedule(scheduleId);
+  const scheduleCalId = extractScheduleCalId(result && result.schedule);
+
+  if (!scheduleCalId) {
+    res.status(404).json({
+      code: 'SCHEDULE_NOT_FOUND',
+      message: '未找到对应日程',
+    });
+    return false;
+  }
+
+  return ensureCalendarScopeAllowed(req, res, scheduleCalId);
+};
+
+// loadScheduleForPermissionCheck
+// 是什么：日程详情权限校验前置加载函数。
+// 做什么：按 `schedule_id` 拉取详情并统一处理“未找到日程”的响应分支。
+// 为什么：查看权限和编辑权限都依赖同一份日程详情，集中封装可避免重复错误处理。
+const loadScheduleForPermissionCheck = async (res, scheduleId) => {
+  const result = await wecom.getSchedule(scheduleId);
+  const schedule = result && result.schedule;
+  const scheduleCalId = extractScheduleCalId(schedule);
+
+  if (!scheduleCalId) {
+    res.status(404).json({
+      code: 'SCHEDULE_NOT_FOUND',
+      message: '未找到对应日程',
+    });
+    return null;
+  }
+
+  return schedule;
+};
+
+// ensureScheduleReadAllowed
+// 是什么：日程查看权限校验函数。
+// 做什么：先校验日历范围，再限制普通成员只能读取自己相关的日程。
+// 为什么：执行对象即使能访问个人日历接口，也不应读取与自己无关的他人日程详情。
+const ensureScheduleReadAllowed = async (req, res, scheduleId) => {
+  const schedule = await loadScheduleForPermissionCheck(res, scheduleId);
+  if (!schedule) {
+    return null;
+  }
+
+  if (!(await ensureCalendarScopeAllowed(req, res, extractScheduleCalId(schedule)))) {
+    return null;
+  }
+
+  if (!canUserViewSchedule(req.user, schedule)) {
+    res.status(403).json({
+      code: 'SCHEDULE_READ_FORBIDDEN',
+      message: '仅可查看与自己相关的日程',
+    });
+    return null;
+  }
+
+  return schedule;
+};
+
+// ensureScheduleMutationAllowed
+// 是什么：日程编辑权限校验函数。
+// 做什么：先校验日历范围，再限制普通成员只能改动自己创建的日程。
+// 为什么：成员能看到上级安排的执行事项，但不能直接修改或删除他人创建的日程。
+const ensureScheduleMutationAllowed = async (req, res, scheduleId) => {
+  const schedule = await loadScheduleForPermissionCheck(res, scheduleId);
+  if (!schedule) {
+    return null;
+  }
+
+  if (!(await ensureCalendarScopeAllowed(req, res, extractScheduleCalId(schedule)))) {
+    return null;
+  }
+
+  if (!canUserMutateSchedule(req.user, schedule)) {
+    res.status(403).json({
+      code: 'SCHEDULE_MUTATION_FORBIDDEN',
+      message: '仅可编辑或删除自己创建的日程',
+    });
+    return null;
+  }
+
+  return schedule;
+};
+
 // pickFirstForwardedValue
 // 是什么：转发头首值提取函数。
 // 做什么：从 `x-forwarded-*` 逗号列表中取第一个值并清洗空白。
@@ -496,12 +925,17 @@ const deleteTaskForScheduleCancellation = async (options = {}) => {
   }
 };
 
-router.get('/tasks', authenticateToken, async (req, res) => {
+router.get('/tasks', authenticateToken, requireMenuPermission(PLATFORM_MENU.TASKS), async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   const statusFilter = normalizeText(req.query.status).toUpperCase();
   const requestedScope = normalizeText(req.query.scope).toUpperCase();
   const keyword = normalizeText(req.query.keyword);
+  const page = parsePositiveInteger(req.query.page, 1, Number.MAX_SAFE_INTEGER);
+  const pageSize = parsePositiveInteger(req.query.page_size, 20, 100);
+  const paginationRequested = Boolean(
+    normalizeText(req.query.page) || normalizeText(req.query.page_size)
+  );
 
   const whereClauses = [];
   const params = [];
@@ -510,6 +944,7 @@ router.get('/tasks', authenticateToken, async (req, res) => {
   const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
   const taskScope = resolveTaskQueryScope({
     currentUserId,
+    currentUserPlatformRole: req.user && req.user.platform_role,
     globalVerifiers,
     requestedScope,
   });
@@ -540,12 +975,17 @@ router.get('/tasks', authenticateToken, async (req, res) => {
       `SELECT * FROM tasks ${whereSql} ORDER BY datetime(created_at) DESC, id DESC`,
       params
     );
+    const total = rows.length;
+    const pagedRows = paginationRequested
+      ? rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
+      : rows;
 
-    const taskList = rows.map((row) =>
+    const taskList = pagedRows.map((row) =>
       mapTaskRowToApi(row, {
         now: new Date(),
         currentUserId: req.user && req.user.userid,
         globalVerifiers,
+        currentUserPlatformRole: req.user && req.user.platform_role,
       })
     );
     const kpi = buildTaskKpi(rows, new Date());
@@ -558,12 +998,23 @@ router.get('/tasks', authenticateToken, async (req, res) => {
       resolvedScope: taskScope.resolvedScope,
       restrictToCurrentUser: taskScope.restrictToCurrentUser,
       userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
+      currentUserIsAdmin: taskScope.currentUserIsAdmin,
       keyword,
+      page: paginationRequested ? page : undefined,
+      pageSize: paginationRequested ? pageSize : undefined,
     });
 
     res.json({
       tasks: taskList,
       kpi,
+      pagination: paginationRequested
+        ? {
+            page,
+            page_size: pageSize,
+            total,
+            total_pages: total > 0 ? Math.ceil(total / pageSize) : 1,
+          }
+        : undefined,
     });
   } catch (error) {
     logWithTrace(traceId, 'api', 'tasks.query.error', {
@@ -577,7 +1028,7 @@ router.get('/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/tasks/kpi', authenticateToken, async (req, res) => {
+router.get('/tasks/kpi', authenticateToken, requireMenuPermission(PLATFORM_MENU.DASHBOARD), async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
@@ -587,6 +1038,7 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
     const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
     const taskScope = resolveTaskQueryScope({
       currentUserId,
+      currentUserPlatformRole: req.user && req.user.platform_role,
       globalVerifiers,
       requestedScope,
     });
@@ -607,6 +1059,7 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
       resolvedScope: taskScope.resolvedScope,
       restrictToCurrentUser: taskScope.restrictToCurrentUser,
       userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
+      currentUserIsAdmin: taskScope.currentUserIsAdmin,
     });
 
     res.json({ kpi });
@@ -623,7 +1076,12 @@ router.get('/tasks/kpi', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
+router.get(
+  '/tasks/team-stats',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.TEAM_STATS),
+  requireAdmin,
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
@@ -638,6 +1096,7 @@ router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
     const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
     const taskScope = resolveTaskQueryScope({
       currentUserId,
+      currentUserPlatformRole: req.user && req.user.platform_role,
       globalVerifiers,
       requestedScope,
     });
@@ -649,7 +1108,10 @@ router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
             normalizeText(item.creator_userid) === currentUserId
         )
       : rows;
-    const teamStats = buildTaskTeamStats(scopedRows, contactRows, now);
+    const roleMap = await resolvePlatformRoleMap(
+      scopedRows.flatMap((item) => [item && item.creator_userid, item && item.executor_userid])
+    );
+    const teamStats = buildTaskTeamStats(scopedRows, contactRows, now, roleMap);
 
     logWithTrace(traceId, 'api', 'tasks.team_stats.success', {
       userid: req.user && req.user.userid,
@@ -657,6 +1119,7 @@ router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
       resolvedScope: taskScope.resolvedScope,
       restrictToCurrentUser: taskScope.restrictToCurrentUser,
       userIsGlobalVerifier: taskScope.userIsGlobalVerifier,
+      currentUserIsAdmin: taskScope.currentUserIsAdmin,
       managerMemberCount: teamStats.summaries.manager.member_count,
       executorMemberCount: teamStats.summaries.executor.member_count,
     });
@@ -675,11 +1138,13 @@ router.get('/tasks/team-stats', authenticateToken, async (req, res) => {
       message: '获取团队统计失败',
     });
   }
-});
+  }
+);
 
 router.post(
   '/tasks/:id/complete',
   authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.TASKS),
   withTaskOperationHandler(async (req, res) => {
     const taskId = Number(req.params.id);
     const result = await taskService.completeTaskById(taskId, req.user.userid, 'web_api');
@@ -695,6 +1160,7 @@ router.post(
 router.post(
   '/tasks/:id/verify',
   authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.TASKS),
   withTaskOperationHandler(async (req, res) => {
     const taskId = Number(req.params.id);
     const action = normalizeText(req.body && req.body.action).toUpperCase();
@@ -713,7 +1179,10 @@ router.post(
       req.user.userid,
       isApproved,
       rejectReason,
-      'web_api'
+      'web_api',
+      {
+        currentUserPlatformRole: req.user && req.user.platform_role,
+      }
     );
 
     res.json({
@@ -724,7 +1193,12 @@ router.post(
   })
 );
 
-router.post('/tasks/sync', authenticateToken, async (req, res) => {
+router.post(
+  '/tasks/sync',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireAdmin,
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
@@ -751,11 +1225,14 @@ router.post('/tasks/sync', authenticateToken, async (req, res) => {
       message: '手动触发同步失败',
     });
   }
-});
+  }
+);
 
 router.post(
   '/tasks',
   authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.TASKS),
+  requireAdmin,
   withTaskOperationHandler(async (req, res) => {
     const traceId = req.traceId || createTraceId();
     const payload = {
@@ -902,7 +1379,7 @@ router.get('/user/me', authenticateToken, (req, res) => {
     name: req.user && req.user.name,
   });
 
-  res.json(req.user);
+  res.json(buildApiUserProfile(req.user));
 });
 
 router.get('/users', authenticateToken, async (req, res) => {
@@ -972,6 +1449,17 @@ router.get('/users/:id', authenticateToken, async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const targetUserId = normalizeText(req.params.id);
 
+  if (
+    normalizePlatformRole(req.user && req.user.platform_role) &&
+    !(req.user && req.user.is_admin) &&
+    targetUserId !== normalizeText(req.user && req.user.userid)
+  ) {
+    return res.status(403).json({
+      code: 'USER_DETAIL_FORBIDDEN',
+      message: '执行对象仅可查看自己的成员信息',
+    });
+  }
+
   try {
     if (!targetUserId) {
       return res.status(400).json({
@@ -1003,7 +1491,236 @@ router.get('/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/tasks/:id', authenticateToken, async (req, res) => {
+router.get(
+  '/system/users',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireAdmin,
+  async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const result = await listSystemUsers({
+      keyword: req.query && req.query.keyword,
+      platformRole: req.query && req.query.platform_role,
+      departmentId: req.query && req.query.department_id,
+      fetchChild: req.query && req.query.fetch_child,
+      page: req.query && req.query.page,
+      pageSize: req.query && req.query.page_size,
+    });
+
+    logWithTrace(traceId, 'api', 'system.users.success', {
+      userid: req.user && req.user.userid,
+      page: result.pagination.page,
+      pageSize: result.pagination.page_size,
+      total: result.pagination.total,
+    });
+
+    res.json(result);
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'system.users.error', {
+      userid: req.user && req.user.userid,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SYSTEM_USERS_ERROR',
+      message: '获取系统管理用户列表失败',
+    });
+  }
+  }
+);
+
+router.get(
+  '/system/departments',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireAdmin,
+  async (req, res) => {
+    const traceId = req.traceId || createTraceId();
+
+    try {
+      const departments = await listSystemDepartments();
+      res.json({
+        departments,
+      });
+    } catch (error) {
+      logWithTrace(traceId, 'api', 'system.departments.error', {
+        userid: req.user && req.user.userid,
+        message: error.message,
+        stack: error.stack,
+      });
+
+      res.status(500).json({
+        code: 'SYSTEM_DEPARTMENTS_ERROR',
+        message: '获取系统管理部门列表失败',
+      });
+    }
+  }
+);
+
+router.post(
+  '/system/contacts/pull',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireAdmin,
+  async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+
+  try {
+    const result = await pullAllContactsToLocalSnapshot();
+    res.status(result && result.success ? 200 : 400).json(result);
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'system.contacts.pull.error', {
+      userid: req.user && req.user.userid,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SYSTEM_CONTACT_PULL_ERROR',
+      message: '拉取通讯录失败',
+    });
+  }
+  }
+);
+
+router.post(
+  '/system/users/:id/role',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireSuperAdmin,
+  async (req, res) => {
+  const traceId = req.traceId || createTraceId();
+  const targetUserId = normalizeText(req.params.id);
+  const requestedRole = normalizePlatformRole(req.body && req.body.platform_role);
+  const bootstrapSuperAdminIds = new Set(parseBootstrapSuperAdminIds());
+
+  if (!targetUserId) {
+    return res.status(400).json({
+      code: 'SYSTEM_USER_ID_REQUIRED',
+      message: '用户ID不能为空',
+    });
+  }
+
+  if (!requestedRole || requestedRole === PLATFORM_ROLE.SUPER_ADMIN) {
+    return res.status(400).json({
+      code: 'SYSTEM_ROLE_INVALID',
+      message: '仅支持分配 ADMIN 或 EXECUTOR',
+    });
+  }
+
+  if (bootstrapSuperAdminIds.has(targetUserId)) {
+    return res.status(400).json({
+      code: 'SYSTEM_BOOTSTRAP_SUPER_ADMIN_IMMUTABLE',
+      message: '引导型超级管理员不可在页面中降权',
+    });
+  }
+
+  try {
+    const access = await upsertPlatformAccessRow({
+      userId: targetUserId,
+      platformRole: requestedRole,
+      updatedByUserId: req.user && req.user.userid,
+    });
+
+    res.json({
+      access,
+    });
+  } catch (error) {
+    logWithTrace(traceId, 'api', 'system.users.role.error', {
+      userid: req.user && req.user.userid,
+      targetUserId,
+      requestedRole,
+      message: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      code: 'SYSTEM_ROLE_UPDATE_ERROR',
+      message: '更新平台角色失败',
+    });
+  }
+  }
+);
+
+router.post(
+  '/system/users/:id/menu-permissions',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.SETTINGS),
+  requireSuperAdmin,
+  async (req, res) => {
+    const traceId = req.traceId || createTraceId();
+    const targetUserId = normalizeText(req.params.id);
+    const bootstrapSuperAdminIds = new Set(parseBootstrapSuperAdminIds());
+    const requestedMenuPermissions = normalizeMenuPermissionList(req.body && req.body.menu_permissions);
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        code: 'SYSTEM_USER_ID_REQUIRED',
+        message: '用户ID不能为空',
+      });
+    }
+
+    if (bootstrapSuperAdminIds.has(targetUserId)) {
+      return res.status(400).json({
+        code: 'SYSTEM_BOOTSTRAP_SUPER_ADMIN_IMMUTABLE',
+        message: '引导型超级管理员不可在页面中调整菜单权限',
+      });
+    }
+
+    if (requestedMenuPermissions.length === 0) {
+      return res.status(400).json({
+        code: 'SYSTEM_MENU_PERMISSIONS_INVALID',
+        message: '请至少保留一个菜单权限',
+      });
+    }
+
+    try {
+      const currentAccess = await getEffectivePlatformAccess(targetUserId);
+
+      if (currentAccess.platform_role !== PLATFORM_ROLE.ADMIN || currentAccess.is_super_admin) {
+        return res.status(400).json({
+          code: 'SYSTEM_MENU_PERMISSIONS_ROLE_INVALID',
+          message: '仅普通管理员支持自定义菜单权限',
+        });
+      }
+
+      const access = await updatePlatformMenuPermissions({
+        userId: targetUserId,
+        menuPermissions: requestedMenuPermissions,
+        updatedByUserId: req.user && req.user.userid,
+      });
+
+      if (!access) {
+        return res.status(400).json({
+          code: 'SYSTEM_MENU_PERMISSIONS_UPDATE_REJECTED',
+          message: '菜单权限更新被拒绝',
+        });
+      }
+
+      res.json({
+        access,
+      });
+    } catch (error) {
+      logWithTrace(traceId, 'api', 'system.users.menu_permissions.error', {
+        userid: req.user && req.user.userid,
+        targetUserId,
+        requestedMenuPermissions,
+        message: error.message,
+        stack: error.stack,
+      });
+
+      res.status(500).json({
+        code: 'SYSTEM_MENU_PERMISSIONS_UPDATE_ERROR',
+        message: '更新菜单权限失败',
+      });
+    }
+  }
+);
+
+router.get('/tasks/:id', authenticateToken, requireMenuPermission(PLATFORM_MENU.TASKS), async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const taskId = Number(req.params.id);
 
@@ -1018,12 +1735,7 @@ router.get('/tasks/:id', authenticateToken, async (req, res) => {
 
     const globalVerifiers = parseGlobalVerifiers(process.env.GLOBAL_VERIFIERS || '');
     const currentUserId = normalizeText(req.user && req.user.userid);
-    if (
-      currentUserId &&
-      normalizeText(task.owner_userid) !== currentUserId &&
-      normalizeText(task.executor_userid) !== currentUserId &&
-      normalizeText(task.creator_userid) !== currentUserId
-    ) {
+    if (!canUserAccessTaskRow(task, req.user)) {
       return res.status(404).json({
         code: 'TASK_NOT_FOUND',
         message: '任务不存在',
@@ -1034,6 +1746,7 @@ router.get('/tasks/:id', authenticateToken, async (req, res) => {
       now: new Date(),
       currentUserId,
       globalVerifiers,
+      currentUserPlatformRole: req.user && req.user.platform_role,
     });
 
     logWithTrace(traceId, 'api', 'task.detail.success', {
@@ -1056,15 +1769,23 @@ router.get('/tasks/:id', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/calendar/mappings', authenticateToken, async (req, res) => {
+router.get('/calendar/mappings', authenticateToken, requireMenuPermission(PLATFORM_MENU.CALENDAR), async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
-    const rows = await allSql(
-      `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at
-       FROM user_calendar_map
-       ORDER BY datetime(updated_at) DESC, user_id ASC`
-    );
+    const rows = normalizePlatformRole(req.user && req.user.platform_role) && !(req.user && req.user.is_admin)
+      ? await allSql(
+          `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at
+             FROM user_calendar_map
+            WHERE user_id = ?
+            ORDER BY datetime(updated_at) DESC, user_id ASC`,
+          [normalizeText(req.user && req.user.userid)]
+        )
+      : await allSql(
+          `SELECT user_id, cal_id, calendar_summary, source, created_at, updated_at
+             FROM user_calendar_map
+             ORDER BY datetime(updated_at) DESC, user_id ASC`
+        );
 
     res.json({
       mappings: rows || [],
@@ -1082,7 +1803,7 @@ router.get('/calendar/mappings', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/calendar/ensure', authenticateToken, async (req, res) => {
+router.post('/calendar/ensure', authenticateToken, requireMenuPermission(PLATFORM_MENU.CALENDAR), async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const userId = normalizeText(req.body && req.body.user_id) || normalizeText(req.user && req.user.userid);
   const userName = normalizeText(req.body && req.body.user_name) || normalizeText(req.user && req.user.name);
@@ -1092,6 +1813,17 @@ router.post('/calendar/ensure', authenticateToken, async (req, res) => {
     return res.status(400).json({
       code: 'CALENDAR_ENSURE_USER_ID_REQUIRED',
       message: 'user_id 不能为空',
+    });
+  }
+
+  if (
+    normalizePlatformRole(req.user && req.user.platform_role) &&
+    !(req.user && req.user.is_admin) &&
+    userId !== normalizeText(req.user && req.user.userid)
+  ) {
+    return res.status(403).json({
+      code: 'CALENDAR_ENSURE_FORBIDDEN',
+      message: '执行对象仅可确保自己的个人日历',
     });
   }
 
@@ -1119,7 +1851,12 @@ router.post('/calendar/ensure', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/calendar/create', authenticateToken, async (req, res) => {
+router.post(
+  '/calendar/create',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  requireAdmin,
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
@@ -1169,9 +1906,10 @@ router.post('/calendar/create', authenticateToken, async (req, res) => {
       message: '创建日历失败',
     });
   }
-});
+  }
+);
 
-router.post('/calendar/get', authenticateToken, async (req, res) => {
+router.post('/calendar/get', authenticateToken, requireMenuPermission(PLATFORM_MENU.CALENDAR), async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const calIdList = parseIdList(req.body && req.body.cal_id_list);
 
@@ -1180,6 +1918,18 @@ router.post('/calendar/get', authenticateToken, async (req, res) => {
       code: 'CALENDAR_ID_LIST_REQUIRED',
       message: 'cal_id_list 不能为空',
     });
+  }
+
+  if (normalizePlatformRole(req.user && req.user.platform_role) && !(req.user && req.user.is_admin)) {
+    const currentUserMapping = await getUserCalendarMappingRow(req.user && req.user.userid);
+    const allowedCalId = normalizeText(currentUserMapping && currentUserMapping.cal_id);
+
+    if (!allowedCalId || calIdList.some((item) => normalizeText(item) !== allowedCalId)) {
+      return res.status(403).json({
+        code: 'CALENDAR_GET_FORBIDDEN',
+        message: '执行对象仅可查看自己的日历',
+      });
+    }
   }
 
   try {
@@ -1199,7 +1949,12 @@ router.post('/calendar/get', authenticateToken, async (req, res) => {
   }
 });
 
-router.put('/calendar/:calId', authenticateToken, async (req, res) => {
+router.put(
+  '/calendar/:calId',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  requireAdmin,
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const calId = normalizeText(req.params.calId);
 
@@ -1232,9 +1987,15 @@ router.put('/calendar/:calId', authenticateToken, async (req, res) => {
       message: '更新日历失败',
     });
   }
-});
+  }
+);
 
-router.delete('/calendar/:calId', authenticateToken, async (req, res) => {
+router.delete(
+  '/calendar/:calId',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  requireAdmin,
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const calId = normalizeText(req.params.calId);
 
@@ -1264,9 +2025,14 @@ router.delete('/calendar/:calId', authenticateToken, async (req, res) => {
       message: '删除日历失败',
     });
   }
-});
+  }
+);
 
-router.get('/calendar/:calId/schedules', authenticateToken, async (req, res) => {
+router.get(
+  '/calendar/:calId/schedules',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const calId = normalizeText(req.params.calId);
   const offset = parsePositiveInteger(req.query && req.query.offset, 0, Number.MAX_SAFE_INTEGER);
@@ -1279,8 +2045,21 @@ router.get('/calendar/:calId/schedules', authenticateToken, async (req, res) => 
     });
   }
 
+  if (!(await ensureCalendarScopeAllowed(req, res, calId))) {
+    return;
+  }
+
   try {
     const result = await wecom.getScheduleList(calId, offset, limit);
+    if (
+      result &&
+      result.errcode === 0 &&
+      Array.isArray(result.schedule_list) &&
+      normalizePlatformRole(req.user && req.user.platform_role) &&
+      !(req.user && req.user.is_admin)
+    ) {
+      result.schedule_list = result.schedule_list.filter((item) => canUserViewSchedule(req.user, item));
+    }
     res.status(result && result.errcode === 0 ? 200 : 400).json(result || {});
   } catch (error) {
     logWithTrace(traceId, 'api', 'calendar.schedules.error', {
@@ -1296,15 +2075,28 @@ router.get('/calendar/:calId/schedules', authenticateToken, async (req, res) => 
       message: '获取日程列表失败',
     });
   }
-});
+  }
+);
 
-router.post('/schedule/create', authenticateToken, async (req, res) => {
+router.post('/schedule/create', authenticateToken, requireMenuPermission(PLATFORM_MENU.CALENDAR), async (req, res) => {
   const traceId = req.traceId || createTraceId();
 
   try {
     const schedule = req.body && req.body.schedule && typeof req.body.schedule === 'object'
       ? req.body.schedule
       : req.body || {};
+    const scheduleCalId = extractScheduleCalId(schedule);
+    const timeRangeValidation = validateScheduleTimeRange(schedule, { requireBoth: true });
+
+    if (!(await ensureCalendarScopeAllowed(req, res, scheduleCalId))) {
+      return;
+    }
+    if (!timeRangeValidation.valid) {
+      return res.status(400).json({
+        code: 'SCHEDULE_TIME_RANGE_INVALID',
+        message: timeRangeValidation.message,
+      });
+    }
     const result = await wecom.createSchedule(schedule);
     const normalizedScheduleId = normalizeText(result && result.schedule_id);
     const taskSync =
@@ -1338,7 +2130,7 @@ router.post('/schedule/create', authenticateToken, async (req, res) => {
   }
 });
 
-router.post('/schedule/get', authenticateToken, async (req, res) => {
+router.post('/schedule/get', authenticateToken, requireMenuPermission(PLATFORM_MENU.CALENDAR), async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const scheduleIdList = parseIdList(req.body && req.body.schedule_id_list);
 
@@ -1347,6 +2139,14 @@ router.post('/schedule/get', authenticateToken, async (req, res) => {
       code: 'SCHEDULE_ID_LIST_REQUIRED',
       message: 'schedule_id_list 不能为空',
     });
+  }
+
+  if (normalizePlatformRole(req.user && req.user.platform_role) && !(req.user && req.user.is_admin)) {
+    for (const scheduleId of scheduleIdList) {
+      if (!(await ensureScheduleReadAllowed(req, res, scheduleId))) {
+        return;
+      }
+    }
   }
 
   try {
@@ -1366,7 +2166,11 @@ router.post('/schedule/get', authenticateToken, async (req, res) => {
   }
 });
 
-router.put('/schedule/:scheduleId', authenticateToken, async (req, res) => {
+router.put(
+  '/schedule/:scheduleId',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const scheduleId = normalizeText(req.params.scheduleId);
 
@@ -1377,11 +2181,22 @@ router.put('/schedule/:scheduleId', authenticateToken, async (req, res) => {
     });
   }
 
+  if (!(await ensureScheduleMutationAllowed(req, res, scheduleId))) {
+    return;
+  }
+
   try {
     const schedulePayload = {
       ...(req.body && req.body.schedule && typeof req.body.schedule === 'object' ? req.body.schedule : {}),
       schedule_id: scheduleId,
     };
+    const timeRangeValidation = validateScheduleTimeRange(schedulePayload);
+    if (!timeRangeValidation.valid) {
+      return res.status(400).json({
+        code: 'SCHEDULE_TIME_RANGE_INVALID',
+        message: timeRangeValidation.message,
+      });
+    }
     const result = await wecom.updateSchedule(schedulePayload, {
       skip_attendees: req.body && req.body.skip_attendees,
       op_mode: req.body && req.body.op_mode,
@@ -1416,9 +2231,14 @@ router.put('/schedule/:scheduleId', authenticateToken, async (req, res) => {
       message: '更新日程失败',
     });
   }
-});
+  }
+);
 
-router.delete('/schedule/:scheduleId', authenticateToken, async (req, res) => {
+router.delete(
+  '/schedule/:scheduleId',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const scheduleId = normalizeText(req.params.scheduleId);
 
@@ -1427,6 +2247,10 @@ router.delete('/schedule/:scheduleId', authenticateToken, async (req, res) => {
       code: 'SCHEDULE_ID_REQUIRED',
       message: 'schedule_id 不能为空',
     });
+  }
+
+  if (!(await ensureScheduleMutationAllowed(req, res, scheduleId))) {
+    return;
   }
 
   try {
@@ -1460,9 +2284,14 @@ router.delete('/schedule/:scheduleId', authenticateToken, async (req, res) => {
       message: '取消日程失败',
     });
   }
-});
+  }
+);
 
-router.post('/schedule/:scheduleId/attendees/add', authenticateToken, async (req, res) => {
+router.post(
+  '/schedule/:scheduleId/attendees/add',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const scheduleId = normalizeText(req.params.scheduleId);
   const attendees = Array.isArray(req.body && req.body.attendees) ? req.body.attendees : [];
@@ -1472,6 +2301,10 @@ router.post('/schedule/:scheduleId/attendees/add', authenticateToken, async (req
       code: 'SCHEDULE_ID_REQUIRED',
       message: 'schedule_id 不能为空',
     });
+  }
+
+  if (!(await ensureScheduleMutationAllowed(req, res, scheduleId))) {
+    return;
   }
 
   try {
@@ -1504,9 +2337,14 @@ router.post('/schedule/:scheduleId/attendees/add', authenticateToken, async (req
       message: '新增日程参与者失败',
     });
   }
-});
+  }
+);
 
-router.post('/schedule/:scheduleId/attendees/del', authenticateToken, async (req, res) => {
+router.post(
+  '/schedule/:scheduleId/attendees/del',
+  authenticateToken,
+  requireMenuPermission(PLATFORM_MENU.CALENDAR),
+  async (req, res) => {
   const traceId = req.traceId || createTraceId();
   const scheduleId = normalizeText(req.params.scheduleId);
   const attendees = Array.isArray(req.body && req.body.attendees) ? req.body.attendees : [];
@@ -1516,6 +2354,10 @@ router.post('/schedule/:scheduleId/attendees/del', authenticateToken, async (req
       code: 'SCHEDULE_ID_REQUIRED',
       message: 'schedule_id 不能为空',
     });
+  }
+
+  if (!(await ensureScheduleMutationAllowed(req, res, scheduleId))) {
+    return;
   }
 
   try {
@@ -1548,6 +2390,7 @@ router.post('/schedule/:scheduleId/attendees/del', authenticateToken, async (req
       message: '删除日程参与者失败',
     });
   }
-});
+  }
+);
 
 module.exports = router;

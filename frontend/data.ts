@@ -1,18 +1,76 @@
 import { Task, TaskStatus, User } from './types';
 
+// STATIC_ADMIN_MENUS
+// 是什么：静态演示管理员菜单权限常量。
+// 做什么：为设计态样例用户提供完整菜单集合。
+// 为什么：静态数据需满足当前 `User` 类型约束，避免类型检查失败。
+const STATIC_ADMIN_MENUS = ['DASHBOARD', 'TASKS', 'CALENDAR', 'TEAM_STATS', 'SETTINGS'] as const;
+
+// STATIC_EXECUTOR_MENUS
+// 是什么：静态演示执行对象菜单权限常量。
+// 做什么：为设计态样例用户提供固定菜单集合。
+// 为什么：执行对象权限边界已经升级到平台级别，静态样例也应保持一致。
+const STATIC_EXECUTOR_MENUS = ['TASKS', 'CALENDAR'] as const;
+
+// createStaticUser
+// 是什么：静态样例用户构建函数。
+// 做什么：为设计态演示数据补齐平台角色、菜单权限与管理标记。
+// 为什么：`User` 类型已扩展，统一工厂函数可避免各处手写重复字段。
+const createStaticUser = (options: {
+  id: string;
+  name: string;
+  avatar: string;
+  role: 'MANAGER' | 'EXECUTOR';
+}): User => {
+  const isManager = options.role === 'MANAGER';
+
+  return {
+    id: options.id,
+    name: options.name,
+    avatar: options.avatar,
+    role: options.role,
+    platformRole: isManager ? 'ADMIN' : 'EXECUTOR',
+    isAdmin: isManager,
+    isSuperAdmin: false,
+    menuPermissions: isManager ? [...STATIC_ADMIN_MENUS] : [...STATIC_EXECUTOR_MENUS],
+  };
+};
+
 export const CURRENT_USER: User = {
-  id: 'u1',
-  name: 'Alex Morgan',
-  avatar: 'https://picsum.photos/id/1005/100/100',
-  role: 'MANAGER'
+  ...createStaticUser({
+    id: 'u1',
+    name: 'Alex Morgan',
+    avatar: 'https://picsum.photos/id/1005/100/100',
+    role: 'MANAGER',
+  }),
 };
 
 const USERS: User[] = [
   CURRENT_USER,
-  { id: 'u2', name: 'Sarah Chen', avatar: 'https://picsum.photos/id/1011/100/100', role: 'EXECUTOR' },
-  { id: 'u3', name: 'Mike Ross', avatar: 'https://picsum.photos/id/1012/100/100', role: 'EXECUTOR' },
-  { id: 'u4', name: 'David Kim', avatar: 'https://picsum.photos/id/1025/100/100', role: 'EXECUTOR' },
-  { id: 'u5', name: 'Jessica Lee', avatar: 'https://picsum.photos/id/1027/100/100', role: 'EXECUTOR' },
+  createStaticUser({
+    id: 'u2',
+    name: 'Sarah Chen',
+    avatar: 'https://picsum.photos/id/1011/100/100',
+    role: 'EXECUTOR',
+  }),
+  createStaticUser({
+    id: 'u3',
+    name: 'Mike Ross',
+    avatar: 'https://picsum.photos/id/1012/100/100',
+    role: 'EXECUTOR',
+  }),
+  createStaticUser({
+    id: 'u4',
+    name: 'David Kim',
+    avatar: 'https://picsum.photos/id/1025/100/100',
+    role: 'EXECUTOR',
+  }),
+  createStaticUser({
+    id: 'u5',
+    name: 'Jessica Lee',
+    avatar: 'https://picsum.photos/id/1027/100/100',
+    role: 'EXECUTOR',
+  }),
 ];
 
 const createTaskFlags = (canComplete = false, canVerify = false, isDueSoon = false, isOverdue = false) => ({

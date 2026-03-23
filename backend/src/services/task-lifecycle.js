@@ -1,3 +1,5 @@
+const { PLATFORM_ROLE, isAdminRole, normalizePlatformRole } = require('./platform-access');
+
 // TASK_STATUS
 // 是什么：任务状态常量定义。
 // 做什么：统一约束后端可识别的任务状态值，避免散落硬编码。
@@ -17,6 +19,21 @@ const REMINDER_KIND = {
   DUE_SOON: 'DUE_SOON',
   OVERDUE: 'OVERDUE',
 };
+
+// TASK_TEAM_ROLE
+// 是什么：团队统计角色常量。
+// 做什么：统一约束团队统计中的“管理岗/执行岗”取值。
+// 为什么：团队看板需要按不同岗位口径输出统计，避免前后端各自定义字符串。
+const TASK_TEAM_ROLE = {
+  MANAGER: 'MANAGER',
+  EXECUTOR: 'EXECUTOR',
+};
+
+// DEFAULT_POSITION_LABEL
+// 是什么：岗位缺省文案常量。
+// 做什么：在通讯录尚未同步岗位信息时提供稳定兜底显示。
+// 为什么：团队统计需要按岗位聚合，空岗位若不兜底会造成分组缺失和表格空白。
+const DEFAULT_POSITION_LABEL = '未设置岗位';
 
 // normalizeText
 // 是什么：文本标准化函数。
@@ -82,6 +99,24 @@ const toDateOrNull = (value) => {
   return parsed;
 };
 
+// isTaskCompletedOnTime
+// 是什么：任务按时完成判断函数。
+// 做什么：判断已完成任务的完成时间是否早于或等于截止时间。
+// 为什么：KPI、岗位统计和风险看板都需要复用这一统一口径。
+const isTaskCompletedOnTime = (task) => {
+  if (normalizeText(task && task.status) !== TASK_STATUS.COMPLETED) {
+    return false;
+  }
+
+  const completionTime = toDateOrNull(task && (task.completion_time || task.verify_time));
+  const endTime = toDateOrNull(task && task.end_time);
+  if (!completionTime || !endTime) {
+    return false;
+  }
+
+  return completionTime.getTime() <= endTime.getTime();
+};
+
 // canUserCompleteTask
 // 是什么：执行完成权限判断函数。
 // 做什么：校验当前用户是否为任务执行人且任务处于待执行状态。
@@ -105,9 +140,9 @@ const canUserCompleteTask = (task, userId) => {
 
 // canUserVerifyTask
 // 是什么：验收权限判断函数。
-// 做什么：校验当前用户是否具备任务验收权限（创建人或全局验收人）。
-// 为什么：确保只有授权管理者可执行“通过/驳回”，避免越权改状态。
-const canUserVerifyTask = (task, userId, globalVerifiers = []) => {
+// 做什么：校验当前用户是否具备任务验收权限（创建人、平台管理员或全局验收人）。
+// 为什么：执行对象不可越权验收任务，但平台管理员需要具备统一管理能力。
+const canUserVerifyTask = (task, userId, options = {}) => {
   if (!task) {
     return false;
   }
@@ -115,8 +150,11 @@ const canUserVerifyTask = (task, userId, globalVerifiers = []) => {
   const normalizedUserId = normalizeText(userId);
   const creatorId = normalizeText(task.creator_userid);
   const status = normalizeText(task.status);
+  const normalizedOptions = Array.isArray(options) ? { globalVerifiers: options } : options || {};
+  const userPlatformRole = normalizePlatformRole(normalizedOptions.currentUserPlatformRole);
+  const userIsAdmin = isAdminRole(userPlatformRole);
   const verifierSet = new Set(
-    (Array.isArray(globalVerifiers) ? globalVerifiers : [])
+    (Array.isArray(normalizedOptions.globalVerifiers) ? normalizedOptions.globalVerifiers : [])
       .map((item) => normalizeText(item))
       .filter(Boolean)
   );
@@ -125,7 +163,7 @@ const canUserVerifyTask = (task, userId, globalVerifiers = []) => {
     return false;
   }
 
-  return normalizedUserId === creatorId || verifierSet.has(normalizedUserId);
+  return userIsAdmin || normalizedUserId === creatorId || verifierSet.has(normalizedUserId);
 };
 
 // getReminderKind
@@ -226,12 +264,16 @@ const mapTaskRowToApi = (row, options = {}) => {
   const now = options.now instanceof Date ? options.now : new Date();
   const currentUserId = normalizeText(options.currentUserId);
   const globalVerifiers = Array.isArray(options.globalVerifiers) ? options.globalVerifiers : [];
+  const currentUserPlatformRole = normalizePlatformRole(options.currentUserPlatformRole);
 
   return {
     ...row,
     redo_count: Number(row.redo_count || 0),
     can_complete: canUserCompleteTask(row, currentUserId),
-    can_verify: canUserVerifyTask(row, currentUserId, globalVerifiers),
+    can_verify: canUserVerifyTask(row, currentUserId, {
+      globalVerifiers,
+      currentUserPlatformRole,
+    }),
     is_due_soon: isTaskDueSoon(row, now),
     is_overdue: isTaskOverdue(row, now),
   };
@@ -248,20 +290,7 @@ const buildTaskKpi = (rows = [], now = new Date()) => {
   const waitingVerifyCount = taskRows.filter((item) => normalizeText(item.status) === TASK_STATUS.WAITING_VERIFY).length;
   const overdueCount = taskRows.filter((item) => isTaskOverdue(item, now)).length;
   const dueSoonCount = taskRows.filter((item) => isTaskDueSoon(item, now)).length;
-
-  const onTimeCompletedCount = taskRows.filter((item) => {
-    if (normalizeText(item.status) !== TASK_STATUS.COMPLETED) {
-      return false;
-    }
-
-    const completionTime = toDateOrNull(item.completion_time || item.verify_time);
-    const endTime = toDateOrNull(item.end_time);
-    if (!completionTime || !endTime) {
-      return false;
-    }
-
-    return completionTime.getTime() <= endTime.getTime();
-  }).length;
+  const onTimeCompletedCount = taskRows.filter((item) => isTaskCompletedOnTime(item)).length;
 
   const completionRate = totalCount > 0 ? Number(((completedCount / totalCount) * 100).toFixed(2)) : 0;
   const onTimeRate = completedCount > 0 ? Number(((onTimeCompletedCount / completedCount) * 100).toFixed(2)) : 0;
@@ -277,9 +306,252 @@ const buildTaskKpi = (rows = [], now = new Date()) => {
   };
 };
 
+// buildUserDirectoryIndex
+// 是什么：用户目录索引构建函数。
+// 做什么：将通讯录成员列表转换为 `user_id -> 用户信息` 的查找表。
+// 为什么：团队统计需频繁按 user_id 读取姓名与岗位，使用索引可减少重复解析。
+const buildUserDirectoryIndex = (rows = []) => {
+  const index = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((item) => {
+    const userId = normalizeText(item && (item.user_id || item.userid || item.id));
+    if (!userId) {
+      return;
+    }
+
+    index.set(userId, {
+      user_id: userId,
+      user_name: normalizeText(item && item.name) || userId,
+      position: normalizeText(item && item.position) || DEFAULT_POSITION_LABEL,
+    });
+  });
+
+  return index;
+};
+
+// createRoleMetricRecord
+// 是什么：岗位统计记录初始化函数。
+// 做什么：为成员、岗位分组和总览生成统一结构的累加器。
+// 为什么：管理岗和执行岗仅口径不同，基础指标字段应保持一致，便于前端复用。
+const createRoleMetricRecord = ({ role, userId = '', userName = '', position = DEFAULT_POSITION_LABEL } = {}) => {
+  return {
+    role,
+    user_id: userId,
+    user_name: userName || userId || '',
+    position: position || DEFAULT_POSITION_LABEL,
+    task_count: 0,
+    completed_count: 0,
+    pending_count: 0,
+    waiting_verify_count: 0,
+    overdue_count: 0,
+    due_soon_count: 0,
+    member_count: 0,
+    _on_time_completed_count: 0,
+    _member_ids: new Set(),
+  };
+};
+
+// applyTaskToMetricRecord
+// 是什么：单任务指标累加函数。
+// 做什么：把一条任务按统一口径累加到成员/岗位/总览统计对象。
+// 为什么：团队统计需要多个维度同时累计，抽成公共函数能确保口径一致。
+const applyTaskToMetricRecord = (record, task, now) => {
+  if (!record || !task) {
+    return record;
+  }
+
+  const status = normalizeText(task.status);
+  record.task_count += 1;
+
+  if (status === TASK_STATUS.COMPLETED) {
+    record.completed_count += 1;
+    if (isTaskCompletedOnTime(task)) {
+      record._on_time_completed_count += 1;
+    }
+  }
+
+  if (status === TASK_STATUS.PENDING) {
+    record.pending_count += 1;
+  }
+
+  if (status === TASK_STATUS.WAITING_VERIFY) {
+    record.waiting_verify_count += 1;
+  }
+
+  if (isTaskOverdue(task, now)) {
+    record.overdue_count += 1;
+  }
+
+  if (isTaskDueSoon(task, now)) {
+    record.due_soon_count += 1;
+  }
+
+  return record;
+};
+
+// finalizeRoleMetricRecord
+// 是什么：岗位统计记录收口函数。
+// 做什么：为累加器补全完成率/按时率并移除内部字段。
+// 为什么：内部累计状态不应直接暴露给接口层，需统一收敛为稳定响应结构。
+const finalizeRoleMetricRecord = (record) => {
+  const completedCount = Number(record && record.completed_count) || 0;
+  const taskCount = Number(record && record.task_count) || 0;
+  const onTimeCompletedCount = Number(record && record._on_time_completed_count) || 0;
+  const memberCount = Number(record && record.member_count) || 0;
+
+  return {
+    role: normalizeText(record && record.role),
+    user_id: normalizeText(record && record.user_id),
+    user_name: normalizeText(record && record.user_name),
+    position: normalizeText(record && record.position) || DEFAULT_POSITION_LABEL,
+    member_count: memberCount,
+    task_count: taskCount,
+    completed_count: completedCount,
+    pending_count: Number(record && record.pending_count) || 0,
+    waiting_verify_count: Number(record && record.waiting_verify_count) || 0,
+    overdue_count: Number(record && record.overdue_count) || 0,
+    due_soon_count: Number(record && record.due_soon_count) || 0,
+    completion_rate: taskCount > 0 ? Number(((completedCount / taskCount) * 100).toFixed(2)) : 0,
+    on_time_rate: completedCount > 0 ? Number(((onTimeCompletedCount / completedCount) * 100).toFixed(2)) : 0,
+  };
+};
+
+// compareRoleMetricRecord
+// 是什么：岗位统计排序函数。
+// 做什么：优先按任务量、逾期数排序，最后按姓名或岗位名稳定排序。
+// 为什么：让团队看板默认把高风险高负载对象排在前面，提升管理效率。
+const compareRoleMetricRecord = (left, right) => {
+  const taskDiff = Number(right.task_count || 0) - Number(left.task_count || 0);
+  if (taskDiff !== 0) {
+    return taskDiff;
+  }
+
+  const overdueDiff = Number(right.overdue_count || 0) - Number(left.overdue_count || 0);
+  if (overdueDiff !== 0) {
+    return overdueDiff;
+  }
+
+  return String(left.user_name || left.position || '').localeCompare(String(right.user_name || right.position || ''));
+};
+
+// buildTaskTeamStats
+// 是什么：团队岗位统计聚合函数。
+// 做什么：基于任务列表、通讯录和平台权限信息，分别输出管理员与执行对象统计。
+// 为什么：团队看板必须遵循平台权限模型，而不是继续把“发起人/执行人”误当成平台岗位。
+const buildTaskTeamStats = (rows = [], userDirectoryRows = [], now = new Date(), platformRoleMap = new Map()) => {
+  const taskRows = Array.isArray(rows) ? rows : [];
+  const userDirectoryIndex = buildUserDirectoryIndex(userDirectoryRows);
+  const roleConfigs = [
+    {
+      role: TASK_TEAM_ROLE.MANAGER,
+      userField: 'creator_userid',
+      allowPlatformRoles: new Set([PLATFORM_ROLE.SUPER_ADMIN, PLATFORM_ROLE.ADMIN]),
+    },
+    {
+      role: TASK_TEAM_ROLE.EXECUTOR,
+      userField: 'executor_userid',
+      allowPlatformRoles: new Set([PLATFORM_ROLE.EXECUTOR]),
+    },
+  ];
+
+  const result = {
+    summaries: {
+      manager: finalizeRoleMetricRecord(createRoleMetricRecord({ role: TASK_TEAM_ROLE.MANAGER })),
+      executor: finalizeRoleMetricRecord(createRoleMetricRecord({ role: TASK_TEAM_ROLE.EXECUTOR })),
+    },
+    members: {
+      manager: [],
+      executor: [],
+    },
+    positions: {
+      manager: [],
+      executor: [],
+    },
+  };
+
+  roleConfigs.forEach((roleConfig) => {
+    const memberMap = new Map();
+    const positionMap = new Map();
+    const summaryRecord = createRoleMetricRecord({ role: roleConfig.role });
+
+    taskRows.forEach((task) => {
+      const userId = normalizeText(task && task[roleConfig.userField]);
+      if (!userId) {
+        return;
+      }
+
+      const userPlatformRole =
+        normalizePlatformRole(platformRoleMap instanceof Map ? platformRoleMap.get(userId) : '') ||
+        PLATFORM_ROLE.EXECUTOR;
+      if (!roleConfig.allowPlatformRoles.has(userPlatformRole)) {
+        return;
+      }
+
+      const directoryItem = userDirectoryIndex.get(userId) || {
+        user_id: userId,
+        user_name: userId,
+        position: DEFAULT_POSITION_LABEL,
+      };
+
+      let memberRecord = memberMap.get(userId);
+      if (!memberRecord) {
+        memberRecord = createRoleMetricRecord({
+          role: roleConfig.role,
+          userId,
+          userName: directoryItem.user_name,
+          position: directoryItem.position,
+        });
+        memberMap.set(userId, memberRecord);
+      }
+
+      applyTaskToMetricRecord(memberRecord, task, now);
+
+      const positionKey = normalizeText(directoryItem.position) || DEFAULT_POSITION_LABEL;
+      let positionRecord = positionMap.get(positionKey);
+      if (!positionRecord) {
+        positionRecord = createRoleMetricRecord({
+          role: roleConfig.role,
+          position: positionKey,
+        });
+        positionMap.set(positionKey, positionRecord);
+      }
+
+      applyTaskToMetricRecord(positionRecord, task, now);
+      positionRecord._member_ids.add(userId);
+      positionRecord.member_count = positionRecord._member_ids.size;
+
+      applyTaskToMetricRecord(summaryRecord, task, now);
+      summaryRecord._member_ids.add(userId);
+      summaryRecord.member_count = summaryRecord._member_ids.size;
+    });
+
+    const finalizedMembers = Array.from(memberMap.values())
+      .map((item) => finalizeRoleMetricRecord(item))
+      .sort(compareRoleMetricRecord);
+    const finalizedPositions = Array.from(positionMap.values())
+      .map((item) => finalizeRoleMetricRecord(item))
+      .sort(compareRoleMetricRecord);
+    const finalizedSummary = finalizeRoleMetricRecord(summaryRecord);
+
+    if (roleConfig.role === TASK_TEAM_ROLE.MANAGER) {
+      result.members.manager = finalizedMembers;
+      result.positions.manager = finalizedPositions;
+      result.summaries.manager = finalizedSummary;
+      return;
+    }
+
+    result.members.executor = finalizedMembers;
+    result.positions.executor = finalizedPositions;
+    result.summaries.executor = finalizedSummary;
+  });
+
+  return result;
+};
+
 module.exports = {
   TASK_STATUS,
   REMINDER_KIND,
+  TASK_TEAM_ROLE,
   normalizeText,
   parseGlobalVerifiers,
   normalizeActionKey,
@@ -289,7 +561,8 @@ module.exports = {
   shouldSendReminder,
   isTaskOverdue,
   isTaskDueSoon,
+  isTaskCompletedOnTime,
   mapTaskRowToApi,
   buildTaskKpi,
+  buildTaskTeamStats,
 };
-

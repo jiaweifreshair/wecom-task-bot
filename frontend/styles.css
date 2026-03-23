@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "Manrope", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  body {
+    @apply bg-gray-50 text-slate-900 antialiased;
+  }
+
+  body,
+  #root {
+    min-height: 100vh;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  /* 是什么：隐藏滚动条工具类。
+     做什么：在保留滚动能力的同时隐藏原生滚动条。
+     为什么：任务筛选条与局部滚动面板依赖该视觉效果。 */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 是什么：进入动画基础工具类。
+     做什么：通过 CSS 变量组合透明度和缩放动画。
+     为什么：现有页面大量使用 animate-in/fade-in/zoom-in，需在本地样式链路中继续生效。 */
+  .animate-in {
+    --enter-opacity-from: 1;
+    --enter-scale-from: 1;
+    animation: ui-enter var(--enter-duration, 200ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .fade-in {
+    --enter-opacity-from: 0;
+  }
+
+  .zoom-in {
+    --enter-scale-from: 0.96;
+  }
+
+  @keyframes ui-enter {
+    from {
+      opacity: var(--enter-opacity-from, 1);
+      transform: scale(var(--enter-scale-from, 1));
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* 是什么：滚动条视觉统一样式。
+     做什么：为 WebKit 浏览器提供轻量滚动条皮肤。
+     为什么：登录页与日历页存在内部滚动区域，需要与整体视觉保持一致。 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}

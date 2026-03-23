@@ -280,6 +280,55 @@ class WeComService {
     this.accessToken = null;
     this.tokenExpires = 0;
     this.tokenCache = {};
+    // contactSecretUserListDenied
+    // 是什么：通讯录 Secret 成员查询熔断标记。
+    // 做什么：当 `user/list` 明确返回 `48009` 后，当前进程后续成员查询不再尝试该 Secret。
+    // 为什么：通讯录助手类凭证会稳定触发 `48009`，继续重试只会制造无效日志与额外延迟。
+    this.contactSecretUserListDenied = false;
+  }
+
+  // buildUserListTokenCandidates
+  // 是什么：组织成员查询 token 候选构建函数。
+  // 做什么：根据当前熔断状态生成“通讯录 Secret -> 默认 Secret”候选列表。
+  // 为什么：通讯录 Secret 可用时优先命中最小权限；不可用时应立即跳过，避免重复噪音。
+  buildUserListTokenCandidates() {
+    const candidates = [];
+    const hasIndependentContactSecret =
+      this.contactSecret &&
+      normalizeTextValue(this.contactSecret) !== normalizeTextValue(this.corpSecret);
+
+    if (hasIndependentContactSecret && !this.contactSecretUserListDenied) {
+      candidates.push({
+        source: 'contact',
+        tokenOptions: { corpSecret: this.contactSecret, cacheKey: 'contact' },
+      });
+    }
+
+    candidates.push({
+      source: 'default',
+      tokenOptions: { cacheKey: 'default' },
+    });
+
+    return candidates;
+  }
+
+  // markContactSecretUserListDenied
+  // 是什么：通讯录 Secret 成员查询熔断记录函数。
+  // 做什么：在 contact Secret 命中 `48009` 时标记当前进程跳过该 Secret，并清理旧 token 缓存。
+  // 为什么：错误一旦被证实为能力不匹配，就不应在同一进程里重复尝试。
+  markContactSecretUserListDenied(traceId, responseData = {}) {
+    const errcode = Number(responseData && responseData.errcode);
+    if (errcode !== 48009 || this.contactSecretUserListDenied) {
+      return;
+    }
+
+    this.contactSecretUserListDenied = true;
+    delete this.tokenCache.contact;
+
+    logWithTrace(traceId, 'wecom-service', 'users.list.contact_secret.disabled', {
+      errcode,
+      errmsg: responseData && responseData.errmsg,
+    });
   }
 
   // buildAxiosConfig
@@ -1053,21 +1102,7 @@ class WeComService {
     const normalizedDepartmentId = Number(departmentId) > 0 ? Number(departmentId) : 1;
     const normalizedFetchChild = Number(fetchChild) === 1 ? 1 : 0;
     const normalizedStatus = Number(status) >= 0 ? Number(status) : 0;
-    // tokenCandidates
-    // 是什么：组织成员查询 token 候选列表。
-    // 做什么：优先尝试通讯录 Secret，失败后回退默认 Secret。
-    // 为什么：不同 Secret 可能存在“可信 IP/权限”配置差异，回退可降低单点配置问题影响。
-    const tokenCandidates = [];
-    if (this.contactSecret && normalizeTextValue(this.contactSecret) !== normalizeTextValue(this.corpSecret)) {
-      tokenCandidates.push({
-        source: 'contact',
-        tokenOptions: { corpSecret: this.contactSecret, cacheKey: 'contact' },
-      });
-    }
-    tokenCandidates.push({
-      source: 'default',
-      tokenOptions: { cacheKey: 'default' },
-    });
+    const tokenCandidates = this.buildUserListTokenCandidates();
 
     let lastResponseData = null;
     let lastError = null;
@@ -1097,6 +1132,10 @@ class WeComService {
           errmsg: responseData.errmsg,
           userCount: Array.isArray(responseData.userlist) ? responseData.userlist.length : 0,
         });
+
+        if (candidate.source === 'contact') {
+          this.markContactSecretUserListDenied(traceId, responseData);
+        }
 
         lastResponseData = responseData;
         if (errcode === 0 || isLastCandidate || !USER_LIST_RETRY_ERRCODES.has(errcode)) {

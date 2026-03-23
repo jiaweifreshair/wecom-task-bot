@@ -1,0 +1,73 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: wecom-task-bot-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: wecom_task_bot
+      MYSQL_USER: wecom_task_bot
+      MYSQL_PASSWORD: wecom_task_bot
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wecom-task-bot-db-init
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      TASK_BOT_DB_CLIENT: mysql
+      TASK_BOT_DB_HOST: mysql
+      TASK_BOT_DB_PORT: 3306
+      TASK_BOT_DB_NAME: wecom_task_bot
+      TASK_BOT_DB_USER: wecom_task_bot
+      TASK_BOT_DB_PASSWORD: wecom_task_bot
+    command: ["node", "scripts/init-mysql.js"]
+    profiles:
+      - init
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wecom-task-bot-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      APP_URL: http://localhost:8080
+      FRONTEND_URL: http://localhost:8080
+      AUTH_CALLBACK_BASE_URL: http://localhost:8080
+      TASK_BOT_DB_CLIENT: mysql
+      TASK_BOT_DB_HOST: mysql
+      TASK_BOT_DB_PORT: 3306
+      TASK_BOT_DB_NAME: wecom_task_bot
+      TASK_BOT_DB_USER: wecom_task_bot
+      TASK_BOT_DB_PASSWORD: wecom_task_bot
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

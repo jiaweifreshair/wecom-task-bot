@@ -1,6 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+// ORIGINAL_ENV
+// 是什么：任务服务测试环境变量快照。
+// 做什么：保存任务建历相关配置，便于每个用例后恢复现场。
+// 为什么：本文件既覆盖“已有映射”也覆盖“缺失映射自动建历”分支，必须隔离环境副作用。
+const ORIGINAL_ENV = {
+  USER_CALENDAR_MAP: process.env.USER_CALENDAR_MAP,
+  DEFAULT_CAL_ID: process.env.DEFAULT_CAL_ID,
+  AUTO_USER_CALENDAR_COLOR: process.env.AUTO_USER_CALENDAR_COLOR,
+};
+
 process.env.USER_CALENDAR_MAP = 'zhangsan:cal-zhangsan,lisi:cal-lisi';
 process.env.DEFAULT_CAL_ID = 'default-cal';
 
@@ -37,11 +47,19 @@ const allSql = (sql, params = []) => {
 };
 
 test.beforeEach(async () => {
+  process.env.USER_CALENDAR_MAP = 'zhangsan:cal-zhangsan,lisi:cal-lisi';
+  process.env.DEFAULT_CAL_ID = 'default-cal';
+  process.env.AUTO_USER_CALENDAR_COLOR = ORIGINAL_ENV.AUTO_USER_CALENDAR_COLOR;
   await runSql('DELETE FROM tasks');
+  await runSql('DELETE FROM user_calendar_map');
 });
 
 test.after(async () => {
   await runSql('DELETE FROM tasks');
+  await runSql('DELETE FROM user_calendar_map');
+  process.env.USER_CALENDAR_MAP = ORIGINAL_ENV.USER_CALENDAR_MAP;
+  process.env.DEFAULT_CAL_ID = ORIGINAL_ENV.DEFAULT_CAL_ID;
+  process.env.AUTO_USER_CALENDAR_COLOR = ORIGINAL_ENV.AUTO_USER_CALENDAR_COLOR;
 });
 
 test('createManualTask 应按创建人映射 cal_id 并写入企微日程ID', async () => {
@@ -143,6 +161,71 @@ test('syncScheduleTask 在缺失参与人时应回退到日历归属用户', asy
     assert.equal(rows[0].owner_userid, 'JiaWei');
     assert.equal(rows[0].owner_cal_id, 'cal-jiawei');
   } finally {
+    wecom.sendTemplateCard = originalSendTemplateCard;
+  }
+});
+
+test('createManualTask 在执行人未绑定日历时应自动创建个人日历并落为真实日程', async () => {
+  process.env.USER_CALENDAR_MAP = '';
+  process.env.DEFAULT_CAL_ID = '';
+  process.env.AUTO_USER_CALENDAR_COLOR = '#1D4ED8';
+
+  const createdCalendars = [];
+  const createdSchedules = [];
+
+  const originalCreateCalendar = wecom.createCalendar;
+  const originalCreateSchedule = wecom.createSchedule;
+  const originalSendTemplateCard = wecom.sendTemplateCard;
+
+  wecom.createCalendar = async (payload) => {
+    createdCalendars.push(payload);
+    return {
+      errcode: 0,
+      errmsg: 'ok',
+      cal_id: 'cal-auto-executor',
+    };
+  };
+  wecom.createSchedule = async (payload) => {
+    createdSchedules.push(payload);
+    return {
+      errcode: 0,
+      errmsg: 'ok',
+      schedule_id: 'sch-auto-created',
+    };
+  };
+  wecom.sendTemplateCard = async () => ({ errcode: 0, errmsg: 'ok' });
+
+  try {
+    const result = await taskService.createManualTask(
+      {
+        title: '自动建历任务',
+        description: '执行人首次接任务时自动补齐日历',
+        executor_userid: 'new-executor',
+        start_time: '2026-02-12T09:00:00.000Z',
+        end_time: '2026-02-12T11:00:00.000Z',
+      },
+      'zhangsan',
+      'unit_test'
+    );
+
+    const mappingRows = await allSql(
+      `SELECT user_id, cal_id, source FROM user_calendar_map WHERE user_id = ?`,
+      ['new-executor']
+    );
+
+    assert.equal(createdCalendars.length, 1);
+    assert.equal(createdCalendars[0].summary, '任务管家-new-executor');
+    assert.equal(createdCalendars[0].color, '#1D4ED8');
+    assert.equal(createdSchedules.length, 1);
+    assert.equal(createdSchedules[0].cal_id, 'cal-auto-executor');
+    assert.equal(createdSchedules[0].organizer, 'new-executor');
+    assert.equal(result.task.wecom_schedule_id, 'sch-auto-created');
+    assert.equal(mappingRows.length, 1);
+    assert.equal(mappingRows[0].cal_id, 'cal-auto-executor');
+    assert.equal(mappingRows[0].source, 'task_auto_created');
+  } finally {
+    wecom.createCalendar = originalCreateCalendar;
+    wecom.createSchedule = originalCreateSchedule;
     wecom.sendTemplateCard = originalSendTemplateCard;
   }
 });

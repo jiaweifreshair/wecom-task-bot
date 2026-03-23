@@ -105,6 +105,24 @@ const getUserCalendarRowByUserId = async (userId) => {
   return toUserCalendarRow(row);
 };
 
+// getUserCalendarRowByCalId
+// 是什么：按日历 ID 查询用户映射函数。
+// 做什么：根据 `cal_id` 查询当前归属的账号映射，未命中时返回 `null`。
+// 为什么：日历页直接操作 `schedule/*` 后，需要反查任务应归属到哪个账号。
+const getUserCalendarRowByCalId = async (calId) => {
+  const normalizedCalId = normalizeText(calId);
+  if (!normalizedCalId) {
+    return null;
+  }
+
+  const row = await getSql(
+    `SELECT user_id, cal_id, source FROM user_calendar_map WHERE cal_id = ? ORDER BY datetime(updated_at) DESC LIMIT 1`,
+    [normalizedCalId]
+  );
+
+  return toUserCalendarRow(row);
+};
+
 // upsertUserCalendarRow
 // 是什么：用户日历映射写入函数。
 // 做什么：以 `user_id` 为唯一键插入或更新 `cal_id/source/summary`。
@@ -138,9 +156,31 @@ const upsertUserCalendarRow = async (input = {}) => {
   return getUserCalendarRowByUserId(userId);
 };
 
+// deleteUserCalendarRowByUserId
+// 是什么：按用户删除日历映射函数。
+// 做什么：仅当 `user_id + cal_id` 同时命中时删除数据库映射，返回是否实际删除。
+// 为什么：同步发现失效日历 ID 时需要精准清理脏映射，避免误删已更新的新绑定。
+const deleteUserCalendarRowByUserId = async (userId, calId = '') => {
+  const normalizedUserId = normalizeText(userId);
+  const normalizedCalId = normalizeText(calId);
+
+  if (!normalizedUserId) {
+    return false;
+  }
+
+  const sql = normalizedCalId
+    ? `DELETE FROM user_calendar_map WHERE user_id = ? AND cal_id = ?`
+    : `DELETE FROM user_calendar_map WHERE user_id = ?`;
+  const params = normalizedCalId ? [normalizedUserId, normalizedCalId] : [normalizedUserId];
+  const result = await runSql(sql, params);
+
+  return Number(result && result.changes) > 0;
+};
+
 module.exports = {
   listUserCalendarRows,
   getUserCalendarRowByUserId,
+  getUserCalendarRowByCalId,
   upsertUserCalendarRow,
+  deleteUserCalendarRowByUserId,
 };
-

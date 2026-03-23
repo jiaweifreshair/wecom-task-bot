@@ -86,6 +86,33 @@ test('verify_backend_native_modules 在 Linux 缺少编译链时应先尝试 sql
   assert.doesNotMatch(result.stdout, /Detected missing native build tools/);
 });
 
+test('verify_backend_native_modules 在 mysql 模式下不应再检查 sqlite3', () => {
+  const result = runStartScriptPrelude(`
+    export TASK_BOT_DB_CLIENT="mysql"
+    export TASK_BOT_DB_PATH=""
+    export WECOM_TASK_BOT_DB_PATH=""
+
+    uname() {
+      echo "Linux"
+    }
+
+    node() {
+      echo "unexpected node invocation: $*" >&2
+      return 2
+    }
+
+    npm() {
+      echo "unexpected npm invocation: $*" >&2
+      return 2
+    }
+
+    verify_backend_native_modules
+  `);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /skip sqlite3 runtime verification/i);
+});
+
 test('verify_backend_native_modules 在自愈失败且缺少编译链时应提示补齐工具', () => {
   const result = runStartScriptPrelude(`
     PATH="/tmp"

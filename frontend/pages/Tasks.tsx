@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Search,
   Filter,
@@ -17,6 +17,7 @@ import { useTranslation } from '../contexts/LanguageContext';
 
 interface TasksProps {
   tasks: Task[];
+  canCreateTask: boolean;
   onCreateTask: (payload: TaskCreatePayload) => Promise<void>;
   onCompleteTask: (taskId: number) => Promise<void>;
   onVerifyTask: (taskId: number, action: 'PASS' | 'REJECT', reason?: string) => Promise<void>;
@@ -48,9 +49,11 @@ const defaultCreateTaskForm = (): CreateTaskFormState => {
   };
 };
 
-const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVerifyTask }) => {
+const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCompleteTask, onVerifyTask }) => {
   const [filter, setFilter] = useState<'ALL' | TaskStatus>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [rejectModalOpen, setRejectModalOpen] = useState<{ isOpen: boolean; taskId: number | null }>({
     isOpen: false,
     taskId: null,
@@ -71,6 +74,19 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
       task.creator.name.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesFilter && matchesSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+  const pagedTasks = filteredTasks.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, searchTerm, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const detailTask = useMemo(() => {
     return tasks.find((task) => task.id === detailTaskId) || null;
@@ -137,13 +153,15 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
           <h1 className="text-2xl font-bold text-slate-900">{t.taskManagement}</h1>
           <p className="text-slate-500 text-sm mt-1">{t.taskMgmtSubtitle}</p>
         </div>
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200 flex items-center gap-2"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>{t.createTask}</span>
-        </button>
+        {canCreateTask && (
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-blue-200 flex items-center gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>{t.createTask}</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -213,7 +231,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
             <p className="text-slate-500">{t.noTasks}</p>
           </div>
         ) : (
-          filteredTasks.map((task) => (
+          pagedTasks.map((task) => (
             <div
               key={task.id}
               className={`bg-white rounded-xl p-5 border shadow-sm transition-all hover:shadow-md ${
@@ -341,6 +359,49 @@ const Tasks: React.FC<TasksProps> = ({ tasks, onCreateTask, onCompleteTask, onVe
           ))
         )}
       </div>
+
+      {filteredTasks.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="text-sm text-slate-500">
+            {t.taskPaginationSummary
+              .replace('{start}', String((page - 1) * pageSize + 1))
+              .replace('{end}', String(Math.min(page * pageSize, filteredTasks.length)))
+              .replace('{total}', String(filteredTasks.length))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value) || 10)}
+              className="px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            >
+              <option value={10}>10 / {t.pageItems}</option>
+              <option value={20}>20 / {t.pageItems}</option>
+              <option value={50}>50 / {t.pageItems}</option>
+            </select>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:opacity-50"
+              >
+                {t.prevPage}
+              </button>
+              <span className="text-sm text-slate-600 min-w-[84px] text-center">
+                {t.pageLabel.replace('{page}', String(page)).replace('{totalPages}', String(totalPages))}
+              </span>
+              <button
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm disabled:opacity-50"
+              >
+                {t.nextPage}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

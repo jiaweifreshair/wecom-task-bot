@@ -186,6 +186,42 @@ test('POST /schedule/create 成功后应立即写入任务表', async () => {
   }
 });
 
+test('POST /schedule/create 应拒绝结束时间早于开始时间的日程', async () => {
+  const originalCreateSchedule = wecom.createSchedule;
+  let createCalled = false;
+
+  wecom.createSchedule = async () => {
+    createCalled = true;
+    return {
+      errcode: 0,
+      errmsg: 'ok',
+      schedule_id: 'sch-invalid-time',
+    };
+  };
+
+  try {
+    const response = await invokeJsonRoute({
+      path: '/schedule/create',
+      method: 'post',
+      body: {
+        schedule: {
+          cal_id: 'cal-route-manager',
+          summary: '非法时间测试',
+          attendees: [{ userid: 'lisi' }],
+          start_time: 1760003600,
+          end_time: 1760000000,
+        },
+      },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.body.code, 'SCHEDULE_TIME_RANGE_INVALID');
+    assert.equal(createCalled, false);
+  } finally {
+    wecom.createSchedule = originalCreateSchedule;
+  }
+});
+
 test('PUT /schedule/:scheduleId 成功后应立即更新任务表字段', async () => {
   await runSql(
     `INSERT INTO tasks (
@@ -305,6 +341,7 @@ test('PUT /schedule/:scheduleId 在详情回拉失败且 skip_attendees=1 时应
 
   const originalUpdateSchedule = wecom.updateSchedule;
   const originalGetSchedule = wecom.getSchedule;
+  let getScheduleCallCount = 0;
 
   wecom.updateSchedule = async () => ({
     errcode: 0,
@@ -312,6 +349,24 @@ test('PUT /schedule/:scheduleId 在详情回拉失败且 skip_attendees=1 时应
     schedule_id: 'sch-route-fallback',
   });
   wecom.getSchedule = async () => {
+    getScheduleCallCount += 1;
+    if (getScheduleCallCount === 1) {
+      return {
+        errcode: 0,
+        errmsg: 'ok',
+        schedule: {
+          schedule_id: 'sch-route-fallback',
+          cal_id: 'cal-route-manager',
+          summary: '旧标题',
+          description: '旧描述',
+          organizer: { userid: 'manager-route-user' },
+          attendees: [{ userid: 'executor-a' }],
+          start_time: 1760090400,
+          end_time: 1760094000,
+        },
+      };
+    }
+
     throw new Error('temporary schedule detail unavailable');
   };
 
@@ -330,8 +385,8 @@ test('PUT /schedule/:scheduleId 在详情回拉失败且 skip_attendees=1 时应
         skip_attendees: 1,
       },
       user: {
-        userid: 'editor-user',
-        name: '编辑人',
+        userid: 'manager-route-user',
+        name: '创建人本人',
       },
     });
 
@@ -472,9 +527,24 @@ test('DELETE /schedule/:scheduleId 成功后应同步删除任务表记录', asy
   );
 
   const originalCancelSchedule = wecom.cancelSchedule;
+  const originalGetSchedule = wecom.getSchedule;
   wecom.cancelSchedule = async () => ({
     errcode: 0,
     errmsg: 'ok',
+  });
+  wecom.getSchedule = async () => ({
+    errcode: 0,
+    errmsg: 'ok',
+    schedule: {
+      schedule_id: 'sch-route-delete',
+      cal_id: 'cal-route-manager',
+      summary: '取消即删除',
+      description: '取消日程后应从任务表移除',
+      organizer: { userid: 'manager-route-user' },
+      attendees: [{ userid: 'lisi' }],
+      start_time: 1760000000,
+      end_time: 1760003600,
+    },
   });
 
   try {
@@ -496,6 +566,193 @@ test('DELETE /schedule/:scheduleId 成功后应同步删除任务表记录', asy
     assert.equal(response.body.task_sync.deleted, true);
     assert.equal(taskRow, null);
   } finally {
+    wecom.cancelSchedule = originalCancelSchedule;
+    wecom.getSchedule = originalGetSchedule;
+  }
+});
+
+test('GET /calendar/:calId/schedules 应仅向执行对象返回自己相关的日程', async () => {
+  await runSql(
+    `INSERT INTO user_calendar_map (user_id, cal_id, calendar_summary, source, updated_at)
+     VALUES (?, ?, ?, ?, datetime('now'))`,
+    ['executor-route-user', 'cal-route-executor', '执行人测试日历', 'route_test']
+  );
+
+  const originalGetScheduleList = wecom.getScheduleList;
+  wecom.getScheduleList = async () => ({
+    errcode: 0,
+    errmsg: 'ok',
+    schedule_list: [
+      {
+        schedule_id: 'sch-owned-by-executor',
+        cal_id: 'cal-route-executor',
+        summary: '执行人自建日程',
+        organizer: { userid: 'executor-route-user' },
+        attendees: [{ userid: 'executor-route-user' }],
+        start_time: 1760300000,
+        end_time: 1760303600,
+      },
+      {
+        schedule_id: 'sch-assigned-to-executor',
+        cal_id: 'cal-route-executor',
+        summary: '分配给执行人的日程',
+        organizer: { userid: 'manager-route-user' },
+        attendees: [{ userid: 'executor-route-user' }],
+        start_time: 1760307200,
+        end_time: 1760310800,
+      },
+      {
+        schedule_id: 'sch-irrelevant',
+        cal_id: 'cal-route-executor',
+        summary: '与执行人无关的日程',
+        organizer: { userid: 'manager-route-user' },
+        attendees: [{ userid: 'wangwu' }],
+        start_time: 1760314400,
+        end_time: 1760318000,
+      },
+    ],
+  });
+
+  try {
+    const response = await invokeJsonRoute({
+      path: '/calendar/:calId/schedules',
+      method: 'get',
+      params: {
+        calId: 'cal-route-executor',
+      },
+      user: {
+        userid: 'executor-route-user',
+        name: '执行人路由测试',
+        is_admin: false,
+        platform_role: 'EXECUTOR',
+      },
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.errcode, 0);
+    assert.deepEqual(
+      response.body.schedule_list.map((item) => item.schedule_id),
+      ['sch-owned-by-executor', 'sch-assigned-to-executor']
+    );
+  } finally {
+    wecom.getScheduleList = originalGetScheduleList;
+  }
+});
+
+test('PUT /schedule/:scheduleId 应拒绝执行对象编辑他人创建的日程', async () => {
+  await runSql(
+    `INSERT INTO user_calendar_map (user_id, cal_id, calendar_summary, source, updated_at)
+     VALUES (?, ?, ?, ?, datetime('now'))`,
+    ['executor-route-user', 'cal-route-executor', '执行人测试日历', 'route_test']
+  );
+
+  const originalGetSchedule = wecom.getSchedule;
+  const originalUpdateSchedule = wecom.updateSchedule;
+  let updateCalled = false;
+
+  wecom.getSchedule = async () => ({
+    errcode: 0,
+    errmsg: 'ok',
+    schedule: {
+      schedule_id: 'sch-route-readonly',
+      cal_id: 'cal-route-executor',
+      summary: '领导创建的执行日程',
+      organizer: { userid: 'manager-route-user' },
+      attendees: [{ userid: 'executor-route-user' }],
+      start_time: 1760400000,
+      end_time: 1760403600,
+    },
+  });
+  wecom.updateSchedule = async () => {
+    updateCalled = true;
+    return {
+      errcode: 0,
+      errmsg: 'ok',
+      schedule_id: 'sch-route-readonly',
+    };
+  };
+
+  try {
+    const response = await invokeJsonRoute({
+      path: '/schedule/:scheduleId',
+      method: 'put',
+      params: {
+        scheduleId: 'sch-route-readonly',
+      },
+      body: {
+        schedule: {
+          summary: '试图修改',
+        },
+      },
+      user: {
+        userid: 'executor-route-user',
+        name: '执行人路由测试',
+        is_admin: false,
+        platform_role: 'EXECUTOR',
+      },
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.code, 'SCHEDULE_MUTATION_FORBIDDEN');
+    assert.equal(updateCalled, false);
+  } finally {
+    wecom.getSchedule = originalGetSchedule;
+    wecom.updateSchedule = originalUpdateSchedule;
+  }
+});
+
+test('DELETE /schedule/:scheduleId 应拒绝执行对象删除他人创建的日程', async () => {
+  await runSql(
+    `INSERT INTO user_calendar_map (user_id, cal_id, calendar_summary, source, updated_at)
+     VALUES (?, ?, ?, ?, datetime('now'))`,
+    ['executor-route-user', 'cal-route-executor', '执行人测试日历', 'route_test']
+  );
+
+  const originalGetSchedule = wecom.getSchedule;
+  const originalCancelSchedule = wecom.cancelSchedule;
+  let cancelCalled = false;
+
+  wecom.getSchedule = async () => ({
+    errcode: 0,
+    errmsg: 'ok',
+    schedule: {
+      schedule_id: 'sch-route-readonly-delete',
+      cal_id: 'cal-route-executor',
+      summary: '领导创建的执行日程',
+      organizer: { userid: 'manager-route-user' },
+      attendees: [{ userid: 'executor-route-user' }],
+      start_time: 1760500000,
+      end_time: 1760503600,
+    },
+  });
+  wecom.cancelSchedule = async () => {
+    cancelCalled = true;
+    return {
+      errcode: 0,
+      errmsg: 'ok',
+    };
+  };
+
+  try {
+    const response = await invokeJsonRoute({
+      path: '/schedule/:scheduleId',
+      method: 'delete',
+      params: {
+        scheduleId: 'sch-route-readonly-delete',
+      },
+      user: {
+        userid: 'executor-route-user',
+        name: '执行人路由测试',
+        is_admin: false,
+        platform_role: 'EXECUTOR',
+      },
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.code, 'SCHEDULE_MUTATION_FORBIDDEN');
+    assert.equal(cancelCalled, false);
+  } finally {
+    wecom.getSchedule = originalGetSchedule;
     wecom.cancelSchedule = originalCancelSchedule;
   }
 });

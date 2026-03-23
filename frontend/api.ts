@@ -1,5 +1,14 @@
 import axios from 'axios';
-import { TaskCreatePayload, TaskStatus } from './types';
+import {
+  MenuPermission,
+  PaginationMeta,
+  PlatformRole,
+  SystemDepartmentRow,
+  SystemUserRow,
+  TaskCreatePayload,
+  TaskStatus,
+  TeamStatsSnapshot,
+} from './types';
 
 const API_BASE = '/api';
 
@@ -48,9 +57,111 @@ export interface BackendTaskKpi {
   on_time_rate: number;
 }
 
+// BackendTeamMetricRow
+// 是什么：团队统计通用后端行模型。
+// 做什么：描述角色总览、成员榜单和岗位榜单共用的 snake_case 结构。
+// 为什么：前端需要先接收后端原始响应，再统一映射为 camelCase 类型。
+interface BackendTeamMetricRow {
+  role: 'MANAGER' | 'EXECUTOR';
+  user_id?: string;
+  user_name?: string;
+  position?: string;
+  member_count?: number;
+  task_count?: number;
+  completed_count?: number;
+  pending_count?: number;
+  waiting_verify_count?: number;
+  overdue_count?: number;
+  due_soon_count?: number;
+  completion_rate?: number;
+  on_time_rate?: number;
+}
+
+// BackendTeamStatsResponse
+// 是什么：团队统计后端返回模型。
+// 做什么：描述 `/tasks/team-stats` 响应体中的角色总览、成员列表和岗位列表。
+// 为什么：接口响应嵌套较深，需要明确原始结构以便安全映射。
+interface BackendTeamStatsResponse {
+  team_stats?: {
+    summaries?: {
+      manager?: BackendTeamMetricRow;
+      executor?: BackendTeamMetricRow;
+    };
+    members?: {
+      manager?: BackendTeamMetricRow[];
+      executor?: BackendTeamMetricRow[];
+    };
+    positions?: {
+      manager?: BackendTeamMetricRow[];
+      executor?: BackendTeamMetricRow[];
+    };
+  };
+}
+
 export interface TaskListResponse {
   tasks: BackendTaskRow[];
   kpi: BackendTaskKpi;
+  pagination?: {
+    page?: number;
+    page_size?: number;
+    total?: number;
+    total_pages?: number;
+  };
+}
+
+interface BackendUserProfileResponse {
+  userid: string;
+  name: string;
+  avatar?: string;
+  role?: 'MANAGER' | 'EXECUTOR';
+  platform_role?: PlatformRole;
+  is_admin?: boolean;
+  is_super_admin?: boolean;
+  menu_permissions?: MenuPermission[];
+}
+
+interface BackendSystemUserRow {
+  user_id: string;
+  name?: string;
+  position?: string;
+  mobile?: string;
+  email?: string;
+  alias?: string;
+  status?: number;
+  main_department?: number;
+  main_department_name?: string;
+  cal_id?: string;
+  calendar_summary?: string;
+  calendar_source?: string;
+  platform_role?: PlatformRole;
+  is_super_admin?: boolean;
+  is_admin?: boolean;
+  menu_permissions?: MenuPermission[];
+  access_source?: string;
+  contact_updated_at?: string;
+}
+
+interface BackendSystemUsersResponse {
+  users?: BackendSystemUserRow[];
+  pagination?: {
+    page?: number;
+    page_size?: number;
+    total?: number;
+    total_pages?: number;
+  };
+}
+
+interface BackendSystemDepartmentRow {
+  department_id?: number;
+  name?: string;
+  parent_department_id?: number;
+  order_value?: number;
+  level?: number;
+  member_count?: number;
+}
+
+interface BackendSystemDepartmentsResponse {
+  departments?: BackendSystemDepartmentRow[];
 }
 
 export type AuthLoginMode = 'auto' | 'qr' | 'oauth';
@@ -103,8 +214,56 @@ export const getTaskKpi = async (): Promise<BackendTaskKpi> => {
   return response.data.kpi;
 };
 
+// mapBackendTeamMetricRow
+// 是什么：团队统计通用行映射函数。
+// 做什么：把后端 snake_case 指标行转换为前端 camelCase 结构。
+// 为什么：前端组件应消费统一字段命名，避免界面层散落映射逻辑。
+const mapBackendTeamMetricRow = (row: BackendTeamMetricRow) => {
+  return {
+    role: row.role,
+    userId: row.user_id || '',
+    userName: row.user_name || '',
+    position: row.position || '未设置岗位',
+    memberCount: Number(row.member_count || 0),
+    taskCount: Number(row.task_count || 0),
+    completedCount: Number(row.completed_count || 0),
+    pendingCount: Number(row.pending_count || 0),
+    waitingVerifyCount: Number(row.waiting_verify_count || 0),
+    overdueCount: Number(row.overdue_count || 0),
+    dueSoonCount: Number(row.due_soon_count || 0),
+    completionRate: Number(row.completion_rate || 0),
+    onTimeRate: Number(row.on_time_rate || 0),
+  };
+};
+
+// getTeamStats
+// 是什么：团队统计查询 API。
+// 做什么：从后端读取管理岗与执行岗的总览、成员榜单和岗位榜单，并完成字段映射。
+// 为什么：团队页需要真实岗位统计数据，不能继续依赖本地按执行人单一聚合。
+export const getTeamStats = async (): Promise<TeamStatsSnapshot> => {
+  const response = await api.get<BackendTeamStatsResponse>('/tasks/team-stats');
+  const teamStats = response.data.team_stats || {};
+  const managerSummary = mapBackendTeamMetricRow(teamStats.summaries?.manager || { role: 'MANAGER' });
+  const executorSummary = mapBackendTeamMetricRow(teamStats.summaries?.executor || { role: 'EXECUTOR' });
+
+  return {
+    summaries: {
+      manager: managerSummary,
+      executor: executorSummary,
+    },
+    members: {
+      manager: (teamStats.members?.manager || []).map((item) => mapBackendTeamMetricRow(item)),
+      executor: (teamStats.members?.executor || []).map((item) => mapBackendTeamMetricRow(item)),
+    },
+    positions: {
+      manager: (teamStats.positions?.manager || []).map((item) => mapBackendTeamMetricRow(item)),
+      executor: (teamStats.positions?.executor || []).map((item) => mapBackendTeamMetricRow(item)),
+    },
+  };
+};
+
 export const getUser = async () => {
-  const response = await api.get('/user/me');
+  const response = await api.get<BackendUserProfileResponse>('/user/me');
   return response.data;
 };
 
@@ -127,6 +286,142 @@ export interface OrgUserProfile {
   [key: string]: unknown;
 }
 
+// mapBackendSystemUserRow
+// 是什么：系统管理用户行映射函数。
+// 做什么：将后端系统管理页的 snake_case 结构转换为前端 camelCase 类型。
+// 为什么：系统管理页表格字段较多，统一映射可避免界面层散落字段清洗。
+const mapBackendSystemUserRow = (row: BackendSystemUserRow): SystemUserRow => {
+  return {
+    userId: row.user_id || '',
+    name: row.name || row.user_id || '',
+    position: row.position || '',
+    mobile: row.mobile || '',
+    email: row.email || '',
+    alias: row.alias || '',
+    status: Number(row.status || 0),
+    mainDepartment: Number(row.main_department || 0),
+    mainDepartmentName: row.main_department_name || '',
+    calId: row.cal_id || '',
+    calendarSummary: row.calendar_summary || '',
+    calendarSource: row.calendar_source || '',
+    platformRole: (row.platform_role || 'EXECUTOR') as PlatformRole,
+    isSuperAdmin: Boolean(row.is_super_admin),
+    isAdmin: Boolean(row.is_admin),
+    menuPermissions: Array.isArray(row.menu_permissions) ? row.menu_permissions : [],
+    accessSource: row.access_source || '',
+    contactUpdatedAt: row.contact_updated_at || '',
+  };
+};
+
+// mapBackendSystemDepartmentRow
+// 是什么：系统管理部门行映射函数。
+// 做什么：将后端部门扁平树节点转换为前端 camelCase 类型。
+// 为什么：系统设置页的部门筛选器需要稳定的字段命名，避免视图层直接处理 snake_case。
+const mapBackendSystemDepartmentRow = (row: BackendSystemDepartmentRow): SystemDepartmentRow => {
+  return {
+    departmentId: Number(row.department_id || 0),
+    name: row.name || '',
+    parentDepartmentId: Number(row.parent_department_id || 0),
+    orderValue: Number(row.order_value || 0),
+    level: Number(row.level || 0),
+    memberCount: Number(row.member_count || 0),
+  };
+};
+
+// mapBackendPagination
+// 是什么：分页元信息映射函数。
+// 做什么：将后端分页结构统一转换为前端 camelCase 字段。
+// 为什么：任务列表和系统管理页都需要复用一致的分页元信息模型。
+const mapBackendPagination = (pagination: BackendSystemUsersResponse['pagination']): PaginationMeta => {
+  return {
+    page: Number(pagination?.page || 1),
+    pageSize: Number(pagination?.page_size || 20),
+    total: Number(pagination?.total || 0),
+    totalPages: Number(pagination?.total_pages || 1),
+  };
+};
+
+// getSystemUsers
+// 是什么：系统管理成员列表查询 API。
+// 做什么：读取通讯录快照与平台角色配置的汇总数据，并支持分页与筛选。
+// 为什么：系统管理页需要拉全量成员后再做管理员/执行对象分配。
+export const getSystemUsers = async (options: {
+  keyword?: string;
+  platformRole?: PlatformRole | '';
+  departmentId?: number;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{ users: SystemUserRow[]; pagination: PaginationMeta }> => {
+  const response = await api.get<BackendSystemUsersResponse>('/system/users', {
+    params: {
+      keyword: options.keyword || undefined,
+      platform_role: options.platformRole || undefined,
+      department_id: options.departmentId || undefined,
+      fetch_child: options.departmentId ? 1 : undefined,
+      page: options.page || 1,
+      page_size: options.pageSize || 20,
+    },
+  });
+
+  return {
+    users: (response.data.users || []).map((item) => mapBackendSystemUserRow(item)),
+    pagination: mapBackendPagination(response.data.pagination),
+  };
+};
+
+// getSystemDepartments
+// 是什么：系统管理部门列表查询 API。
+// 做什么：读取本地通讯录部门树的扁平节点列表，供系统设置页做部门筛选。
+// 为什么：管理员需要按部门快速筛选通讯录成员，而不是只靠关键字检索。
+export const getSystemDepartments = async (): Promise<SystemDepartmentRow[]> => {
+  const response = await api.get<BackendSystemDepartmentsResponse>('/system/departments');
+  return (response.data.departments || []).map((item) => mapBackendSystemDepartmentRow(item));
+};
+
+// pullSystemContacts
+// 是什么：系统通讯录刷新 API。
+// 做什么：触发后端从企微全量拉取成员并刷新本地快照。
+// 为什么：角色分配必须基于最新通讯录成员，而不是过期缓存。
+export const pullSystemContacts = async () => {
+  const response = await api.post('/system/contacts/pull');
+  return response.data;
+};
+
+// updateSystemUserRole
+// 是什么：平台角色更新 API。
+// 做什么：由超级管理员为指定成员分配管理员或执行对象角色。
+// 为什么：系统管理页需要直接完成平台权限收口，而不是依赖环境变量。
+export const updateSystemUserRole = async (userId: string, platformRole: Exclude<PlatformRole, 'SUPER_ADMIN'>) => {
+  const response = await api.post(`/system/users/${encodeURIComponent(userId)}/role`, {
+    platform_role: platformRole,
+  });
+  return response.data;
+};
+
+// updateSystemUserMenuPermissions
+// 是什么：管理员菜单权限更新 API。
+// 做什么：由超级管理员为指定管理员写入菜单权限集合。
+// 为什么：系统设置页需要把“菜单管理”从固定角色映射升级为按人配置。
+export const updateSystemUserMenuPermissions = async (userId: string, menuPermissions: MenuPermission[]) => {
+  const response = await api.post(`/system/users/${encodeURIComponent(userId)}/menu-permissions`, {
+    menu_permissions: menuPermissions,
+  });
+  return response.data;
+};
+
+// OrgUsersResponse
+// 是什么：组织成员接口响应类型。
+// 做什么：承载实时查询与本地缓存降级两种返回模式。
+// 为什么：日历页需要识别 `degraded/source`，在网络异常时给出可继续操作的提示。
+export interface OrgUsersResponse {
+  errcode?: number;
+  errmsg?: string;
+  userlist?: OrgUserProfile[];
+  degraded?: boolean;
+  source?: string;
+  degrade_reason?: string;
+}
+
 // getOrgUsers
 // 是什么：组织成员列表查询 API。
 // 做什么：按部门读取企业微信组织成员，默认读取根部门并递归子部门。
@@ -137,7 +432,7 @@ export const getOrgUsers = async (
     fetch_child?: 0 | 1;
     status?: number;
   } = {}
-): Promise<{ errcode?: number; errmsg?: string; userlist?: OrgUserProfile[] }> => {
+): Promise<OrgUsersResponse> => {
   const response = await api.get('/users', {
     params: {
       department_id: options.department_id ?? 1,

@@ -5,6 +5,8 @@ const { buildSyncCalendarTargets } = require('./calendar-mapping');
 const userCalendarStore = require('./user-calendar-store');
 const { logWithTrace, createTraceId } = require('../utils/logger');
 
+const INVALID_CALENDAR_ID_ERRCODE = 90457;
+
 class SyncService {
   constructor() {
     this.defaultCalId = process.env.DEFAULT_CAL_ID || '';
@@ -34,6 +36,38 @@ class SyncService {
     }
 
     return fallbackReason;
+  }
+
+  // cleanupInvalidCalendarMapping
+  // 是什么：失效日历映射自愈函数。
+  // 做什么：当数据库映射命中 `90457 invalid calendar id` 时，精准删除对应脏映射并记录日志。
+  // 为什么：历史测试或手工配置可能留下失效 `cal_id`，若不清理会在每次启动同步时持续报错。
+  async cleanupInvalidCalendarMapping(calendarTarget = {}, scheduleFetchResult = {}) {
+    const source = String(calendarTarget && calendarTarget.source || '').trim();
+    const ownerUserId = String(calendarTarget && calendarTarget.user_id || '').trim();
+    const calId = String(calendarTarget && calendarTarget.cal_id || '').trim();
+    const errcode = Number(scheduleFetchResult && scheduleFetchResult.errcode);
+
+    if (errcode !== INVALID_CALENDAR_ID_ERRCODE) {
+      return false;
+    }
+
+    if (!ownerUserId || !calId || source === 'env_map' || source === 'default') {
+      return false;
+    }
+
+    const deleted = await userCalendarStore.deleteUserCalendarRowByUserId(ownerUserId, calId);
+
+    if (deleted) {
+      logWithTrace(createTraceId(), 'sync-service', 'calendar.mapping.invalid_removed', {
+        user_id: ownerUserId,
+        cal_id: calId,
+        source,
+        errcode,
+      });
+    }
+
+    return deleted;
   }
 
   // resolveSyncPageLimit
@@ -188,6 +222,10 @@ class SyncService {
 
         const scheduleFetchResult = await this.fetchCalendarSchedules(calId);
         if (!scheduleFetchResult.success) {
+          const mappingRemoved = await this.cleanupInvalidCalendarMapping(
+            calendarTarget,
+            scheduleFetchResult
+          );
           summary.calendar_failed_count += 1;
           summary.calendar_errors.push({
             user_id: ownerUserId || '',
@@ -195,6 +233,7 @@ class SyncService {
             reason: scheduleFetchResult.reason || 'wecom_schedule_list_failed',
             errcode: scheduleFetchResult.errcode,
             errmsg: scheduleFetchResult.errmsg,
+            mapping_removed: mappingRemoved,
           });
           continue;
         }
