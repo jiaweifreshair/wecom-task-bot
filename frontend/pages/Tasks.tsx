@@ -14,6 +14,8 @@ import {
 import { Task, TaskCreatePayload, TaskStatus } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import { useTranslation } from '../contexts/LanguageContext';
+import { useBreakpoint, useUnsavedChangesWarning, BottomDrawer } from '../components/ResponsivePatterns';
+import { formatDateTime, normalizeText } from '../utils/display';
 
 interface TasksProps {
   tasks: Task[];
@@ -65,6 +67,11 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
   const [submittingTaskId, setSubmittingTaskId] = useState<number | null>(null);
   const [createForm, setCreateForm] = useState<CreateTaskFormState>(defaultCreateTaskForm());
   const { t } = useTranslation();
+  const breakpoint = useBreakpoint();
+  const isMobile = breakpoint === 'mobile';
+
+  // Unsaved changes warning for create form
+  useUnsavedChangesWarning(createModalOpen && createForm.title.trim() !== '');
 
   const filteredTasks = tasks.filter((task) => {
     const matchesFilter = filter === 'ALL' || task.status === filter;
@@ -243,7 +250,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <StatusBadge status={task.status} />
                     <span className="text-xs text-slate-400 flex items-center gap-1">
-                      {t.due}: {new Date(task.endTime).toLocaleString()}
+                      {t.due}: {formatDateTime(task.endTime)}
                     </span>
                     {task.redoCount > 0 && (
                       <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1">
@@ -262,7 +269,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
                     )}
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 truncate">{task.title}</h3>
-                  <p className="text-sm text-slate-500 mt-1 line-clamp-2">{task.description || '-'}</p>
+                  <p className="text-sm text-slate-500 mt-1 line-clamp-2">{normalizeText(task.description, '暂无数据')}</p>
                   {task.rejectReason && (
                     <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1 mt-2 inline-block">
                       {t.rejectReasonLabel}: {task.rejectReason}
@@ -403,9 +410,9 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
         </div>
       )}
 
-      {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in fade-in zoom-in duration-200">
+      {createModalOpen && !isMobile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => { setCreateModalOpen(false); setCreateForm(defaultCreateTaskForm()); }}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-900 mb-2">{t.createTaskTitle}</h3>
             <p className="text-sm text-slate-500 mb-4">{t.createTaskDesc}</p>
 
@@ -488,6 +495,72 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
         </div>
       )}
 
+      <BottomDrawer
+        open={createModalOpen && isMobile}
+        onClose={() => { setCreateModalOpen(false); setCreateForm(defaultCreateTaskForm()); }}
+        title={t.createTaskTitle}
+      >
+        <div className="space-y-3">
+          <input
+            value={createForm.title}
+            onChange={(event) => setCreateForm((prev) => ({ ...prev, title: event.target.value }))}
+            placeholder={t.createTaskTitlePlaceholder}
+            className="min-h-[44px] w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <textarea
+            value={createForm.description}
+            onChange={(event) => setCreateForm((prev) => ({ ...prev, description: event.target.value }))}
+            placeholder={t.createTaskDescPlaceholder}
+            className="w-full h-24 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+          <select
+            value={createForm.executorUserId}
+            onChange={(event) => setCreateForm((prev) => ({ ...prev, executorUserId: event.target.value }))}
+            className="min-h-[44px] w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">{t.selectExecutor}</option>
+            {executorCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name} ({candidate.id})
+              </option>
+            ))}
+          </select>
+          <input
+            value={createForm.executorUserId}
+            onChange={(event) => setCreateForm((prev) => ({ ...prev, executorUserId: event.target.value.trim() }))}
+            placeholder={t.executorIdInputPlaceholder}
+            className="min-h-[44px] w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">{t.startTime}</label>
+              <input
+                type="datetime-local"
+                value={createForm.startTime}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, startTime: event.target.value }))}
+                className="min-h-[44px] w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">{t.endTime}</label>
+              <input
+                type="datetime-local"
+                value={createForm.endTime}
+                onChange={(event) => setCreateForm((prev) => ({ ...prev, endTime: event.target.value }))}
+                className="min-h-[44px] w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <button
+            onClick={handleCreateTask}
+            disabled={!createForm.title.trim() || !createForm.executorUserId || creating}
+            className="min-h-[44px] w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+          >
+            {creating ? t.creatingTask : t.confirmCreateTask}
+          </button>
+        </div>
+      </BottomDrawer>
+
       {detailTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in fade-in zoom-in duration-200">
@@ -504,14 +577,14 @@ const Tasks: React.FC<TasksProps> = ({ tasks, canCreateTask, onCreateTask, onCom
                 <Calendar className="w-4 h-4 mt-0.5 text-slate-400" />
                 <div>
                   <p className="text-slate-700">
-                    {t.startTime}: {new Date(detailTask.startTime).toLocaleString()}
+                    {t.startTime}: {formatDateTime(detailTask.startTime)}
                   </p>
                   <p className="text-slate-700">
-                    {t.endTime}: {new Date(detailTask.endTime).toLocaleString()}
+                    {t.endTime}: {formatDateTime(detailTask.endTime)}
                   </p>
                 </div>
               </div>
-              <p className="text-slate-700">{detailTask.description || '-'}</p>
+              <p className="text-slate-700">{normalizeText(detailTask.description, '暂无数据')}</p>
               <p className="text-slate-500">
                 {t.creator}: {detailTask.creator.name}
               </p>

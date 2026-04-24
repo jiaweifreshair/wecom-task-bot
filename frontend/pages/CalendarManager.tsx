@@ -28,6 +28,124 @@ import {
 } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/LanguageContext';
+import {
+  useBreakpoint,
+  useUnsavedChangesWarning,
+  BottomDrawer,
+  Popconfirm,
+  MobileActionSheet,
+} from '../components/ResponsivePatterns';
+
+// CalendarSkeletonGrid
+// 是什么：日历骨架屏组件。
+// 做什么：在 API 请求中展示脉冲占位，保持页面布局稳定不跳动。
+// 为什么：需求 7.5 要求使用 Skeleton Screen 而非 loading spinner。
+const CalendarSkeletonGrid: React.FC = () => (
+  <div data-testid="calendar-skeleton" className="space-y-4">
+    <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={`skel-wk-${i}`} className="px-2 py-2 text-center">
+          <div className="mx-auto h-3 w-6 rounded bg-slate-200 skeleton-pulse" />
+        </div>
+      ))}
+    </div>
+    <div className="grid grid-cols-7">
+      {Array.from({ length: 42 }).map((_, i) => (
+        <div key={`skel-cell-${i}`} className="min-h-[124px] border-b border-r border-slate-100 px-2 py-2">
+          <div className="mb-2 h-4 w-5 rounded bg-slate-200 skeleton-pulse" />
+          <div className="space-y-1">
+            <div className="h-3 w-3/4 rounded bg-slate-100 skeleton-pulse" style={{ animationDelay: `${(i % 5) * 100}ms` }} />
+            {i % 3 === 0 && <div className="h-3 w-1/2 rounded bg-slate-100 skeleton-pulse" style={{ animationDelay: `${(i % 5) * 100 + 200}ms` }} />}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// DayEventsSkeleton
+// 是什么：选中日期事件列表骨架屏。
+// 做什么：在日程数据加载中展示占位卡片。
+// 为什么：保持"选中日期事件"面板布局稳定。
+const DayEventsSkeleton: React.FC = () => (
+  <div data-testid="day-events-skeleton" className="space-y-3">
+    {Array.from({ length: 3 }).map((_, i) => (
+      <div key={`skel-evt-${i}`} className="rounded-lg border border-slate-200 p-3">
+        <div className="h-4 w-2/3 rounded bg-slate-200 skeleton-pulse" />
+        <div className="mt-2 h-3 w-full rounded bg-slate-100 skeleton-pulse" style={{ animationDelay: '100ms' }} />
+        <div className="mt-1 h-3 w-1/2 rounded bg-slate-100 skeleton-pulse" style={{ animationDelay: '200ms' }} />
+      </div>
+    ))}
+  </div>
+);
+
+// ToastNotification
+// 是什么：轻量级 Toast 通知组件。
+// 做什么：底部滑入，2 秒自动消失，替代模态弹窗式操作反馈。
+// 为什么：需求 7.11 要求 Toast 通知而非模态弹窗。
+interface ToastItem {
+  id: string;
+  message: string;
+  status: 'success' | 'error' | 'info';
+}
+
+const ToastContainer: React.FC<{ toasts: ToastItem[]; onDismiss: (id: string) => void }> = ({ toasts, onDismiss }) => {
+  if (toasts.length === 0) return null;
+  return (
+    <div
+      data-testid="toast-container"
+      className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2"
+      role="status"
+      aria-live="polite"
+    >
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`toast-enter rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg ${
+            toast.status === 'success'
+              ? 'bg-emerald-600 text-white'
+              : toast.status === 'error'
+              ? 'bg-rose-600 text-white'
+              : 'bg-slate-800 text-white'
+          }`}
+          onClick={() => onDismiss(toast.id)}
+        >
+          {toast.message}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// useToast
+// 是什么：Toast 状态管理 hook。
+// 做什么：管理 toast 队列，自动 2 秒消失。
+// 为什么：集中管理 toast 生命周期。
+const useToast = () => {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const showToast = useCallback((message: string, status: ToastItem['status'] = 'success') => {
+    const id = `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setToasts((prev) => [...prev, { id, message, status }]);
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+      timersRef.current.delete(id);
+    }, 2000);
+    timersRef.current.set(id, timer);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+  }, []);
+
+  return { toasts, showToast, dismissToast };
+};
 
 // WEEKDAY_LABELS
 // 是什么：周标题常量。
@@ -1184,8 +1302,16 @@ interface CalendarManagerProps {
 const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toasts, showToast, dismissToast } = useToast();
+  const breakpoint = useBreakpoint();
+  const isMobile = breakpoint === 'mobile';
 
   const [loading, setLoading] = useState(false);
+  // initialLoading
+  // 是什么：首次数据加载标记。
+  // 做什么：区分首次加载（展示骨架屏）和后续操作加载（展示按钮 loading）。
+  // 为什么：需求 7.5 要求首次加载使用 Skeleton Screen。
+  const [initialLoading, setInitialLoading] = useState(true);
   const [mappings, setMappings] = useState<CalendarMappingRow[]>([]);
   // mappingsLoaded
   // 是什么：日历映射首次加载完成标记。
@@ -1205,6 +1331,11 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
   // 做什么：承载参与人面板中的友好错误文案。
   // 为什么：成员为空时需要区分“筛选无结果”和“接口不可用”。
   const [orgUsersErrorHint, setOrgUsersErrorHint] = useState('');
+  // loadError
+  // 是什么：日程加载错误状态。
+  // 做什么：记录最近一次日程加载失败的错误消息，用于展示友好提示和重试按钮。
+  // 为什么：需求 7.6, 7.7 要求展示用户可理解的错误提示并提供重试按钮。
+  const [loadError, setLoadError] = useState('');
   // miniCalendarCollapsed
   // 是什么：迷你月历折叠状态。
   // 做什么：控制桌面端辅助月历是否仅保留标题栏。
@@ -1247,6 +1378,11 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
   // 做什么：记录当前挂载周期内哪些日历已经自动回拉过日程。
   // 为什么：切页返回时需要自动恢复事件，但不能在每次渲染或状态波动时重复请求接口。
   const hydratedCalendarIdsRef = useRef<Set<string>>(new Set());
+  // monthCacheRef
+  // 是什么：已加载月份缓存集合。
+  // 做什么：记录哪些月份已经加载过数据，切换回已缓存月份时跳过重复请求。
+  // 为什么：需求 7.1 要求切换月份时缓存已加载数据，避免重复请求。
+  const monthCacheRef = useRef<Set<string>>(new Set());
   // hydratingSchedulesPromiseMapRef
   // 是什么：按日历维度缓存中的日程同步 Promise 映射。
   // 做什么：合并同一日历的并发回拉请求，让自动同步和手动刷新复用同一个请求。
@@ -1286,6 +1422,17 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
       endAt: defaults.endAt,
     };
   });
+
+  // mobileDrawerMode
+  // 是什么：移动端抽屉模式状态。
+  // 做什么：控制移动端是否展示全屏底部 Drawer 来编辑/创建日程。
+  // 为什么：需求 7.15, 9.2, 9.5 要求移动端使用全屏 Drawer。
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  // deleteConfirmState
+  // 是什么：删除确认状态。
+  // 做什么：控制桌面端 Popconfirm 和移动端 Action Sheet 的显示。
+  // 为什么：需求 9.7, 9.8 要求不同断点使用不同删除确认模式。
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const monthCells = useMemo(() => buildMonthCells(viewMonth), [viewMonth]);
   const monthTitle = useMemo(() => formatMonthTitle(viewMonth), [viewMonth]);
@@ -1414,6 +1561,22 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
     () => hasInvalidDateTimeRange(scheduleEditor.startAt, scheduleEditor.endAt),
     [scheduleEditor.endAt, scheduleEditor.startAt]
   );
+
+  // unsavedChangesWarning
+  // 是什么：未保存变更离开提示。
+  // 做什么：当用户正在编辑日程表单且有未保存内容时，拦截页面关闭。
+  // 为什么：需求 9.12 要求未保存编辑状态离开时提示。
+  const hasUnsavedChanges = useMemo(() => {
+    if (!selectedEvent) {
+      return scheduleComposer.summary !== '新的工作日程' || scheduleComposer.description !== '' || scheduleComposer.location !== '';
+    }
+    return (
+      scheduleEditor.summary !== selectedEvent.summary ||
+      scheduleEditor.description !== selectedEvent.description ||
+      scheduleEditor.location !== selectedEvent.location
+    );
+  }, [selectedEvent, scheduleComposer, scheduleEditor]);
+  useUnsavedChangesWarning(hasUnsavedChanges);
 
   useEffect(() => {
     if (!selectedEventId) {
@@ -1571,7 +1734,11 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
     };
     setLatestOperation(record);
     setOperationHistory((prev) => [record, ...prev].slice(0, 12));
-  }, []);
+    // Toast 通知：操作成功/失败时自动弹出轻量提示
+    if (status === 'success' || status === 'error') {
+      showToast(`${action}：${message}`, status);
+    }
+  }, [showToast]);
 
   // refreshTaskLinkedViews
   // 是什么：任务关联视图刷新函数。
@@ -1640,6 +1807,11 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
         }
         setEvents((prev) => replaceBoardEventsByCalendarId(prev, normalizedCalId, incomingEvents));
         hydratedCalendarIdsRef.current.add(normalizedCalId);
+        setLoadError('');
+        setInitialLoading(false);
+        // 标记当前月份已缓存
+        const currentMonth = new Date();
+        monthCacheRef.current.add(`${currentMonth.getFullYear()}-${currentMonth.getMonth()}`);
         if (!options.silent) {
           pushOperation(
             '刷新我的日程',
@@ -1653,6 +1825,8 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
           if (!options.silent) {
             pushOperation('刷新我的日程', 'error', resolveErrorMessage(error));
           }
+          setLoadError(resolveErrorMessage(error));
+          setInitialLoading(false);
           throw error;
         })
         .finally(() => {
@@ -1797,7 +1971,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
   );
 
   useEffect(() => {
-    withLoading('加载日历信息', loadMappings, '已加载当前日历状态').catch(() => undefined);
+    withLoading('加载日历信息', loadMappings, '已加载当前日历状态').catch(() => undefined).finally(() => setInitialLoading(false));
   }, [loadMappings, withLoading]);
 
   useEffect(() => {
@@ -2280,10 +2454,16 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
 
   // jumpMonth
   // 是什么：月份跳转函数。
-  // 做什么：按偏移量调整当前展示月份。
-  // 为什么：支持用户快速浏览历史/未来日程。
+  // 做什么：按偏移量调整当前展示月份，已缓存月份不重复请求。
+  // 为什么：支持用户快速浏览历史/未来日程，需求 7.1 要求缓存已加载月份数据。
   const jumpMonth = (offset: number) => {
-    setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
+    const nextMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + offset, 1);
+    setViewMonth(nextMonth);
+    const monthKey = `${nextMonth.getFullYear()}-${nextMonth.getMonth()}`;
+    if (!monthCacheRef.current.has(monthKey) && activeCalId) {
+      monthCacheRef.current.add(monthKey);
+      hydrateSchedulesByCalId(activeCalId, { silent: true }).catch(() => undefined);
+    }
   };
 
   // backToToday
@@ -2521,7 +2701,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
               </div>
             </div>
 
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
+            <div className="hidden md:grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-xs font-medium text-slate-500">
               {WEEKDAY_LABELS.map((label) => (
                 <div key={`week-${label}`} className="px-2 py-2 text-center">
                   {label}
@@ -2529,7 +2709,23 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
               ))}
             </div>
 
-            <div className="grid grid-cols-7">
+            {initialLoading ? (
+              <CalendarSkeletonGrid />
+            ) : loadError ? (
+              <div data-testid="calendar-load-error" className="flex flex-col items-center justify-center gap-3 py-16">
+                <p className="text-sm text-slate-500">{loadError}</p>
+                <button
+                  onClick={refreshMySchedules}
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                  disabled={loading}
+                >
+                  重试
+                </button>
+              </div>
+            ) : (
+            <>
+            {/* Desktop: standard 6×7 grid */}
+            <div className="hidden md:grid grid-cols-7">
               {monthCells.map((day) => {
                 const key = toDateKey(day);
                 const isCurrentMonth = day.getMonth() === viewMonth.getMonth();
@@ -2568,23 +2764,28 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
                       ) : null}
                     </div>
                     <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((event) => (
-                        <button
-                          key={`${event.id}-${key}`}
-                          onClick={(evt) => {
-                            evt.stopPropagation();
-                            setSelectedEventId(event.id);
-                            setSelectedDayKey(key);
-                          }}
-                          className={`block w-full truncate rounded px-2 py-1 text-left text-[11px] text-white ${
-                            selectedEventId === event.id
-                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600'
-                              : 'bg-gradient-to-r from-blue-600 to-indigo-600'
-                          }`}
-                        >
-                          {event.summary}
-                        </button>
-                      ))}
+                      {dayEvents.slice(0, 3).map((event) => {
+                        const isOwnEvent = String(event.ownerUserId || '').trim().toLowerCase() === resolvedCurrentUserId.toLowerCase();
+                        return (
+                          <button
+                            key={`${event.id}-${key}`}
+                            onClick={(evt) => {
+                              evt.stopPropagation();
+                              setSelectedEventId(event.id);
+                              setSelectedDayKey(key);
+                            }}
+                            className={`block w-full truncate rounded px-2 py-1 text-left text-[11px] text-white ${
+                              selectedEventId === event.id
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600'
+                                : isOwnEvent
+                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 font-medium'
+                                  : 'bg-slate-400/80 font-normal'
+                            }`}
+                          >
+                            {event.summary}
+                          </button>
+                        );
+                      })}
                       {dayEvents.length > 3 ? (
                         <p className="text-[10px] text-slate-500">+{dayEvents.length - 3} 条更多</p>
                       ) : null}
@@ -2593,6 +2794,75 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
                 );
               })}
             </div>
+
+            {/* Mobile: compact list view for current month days with events */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {monthCells
+                .filter((day) => {
+                  const key = toDateKey(day);
+                  const isCurrentMonth = day.getMonth() === viewMonth.getMonth();
+                  const dayEvts = eventMapByDay.get(key) || [];
+                  return isCurrentMonth && dayEvts.length > 0;
+                })
+                .map((day) => {
+                  const key = toDateKey(day);
+                  const isToday = key === todayKey;
+                  const isSelected = key === selectedDayKey;
+                  const dayEvts = eventMapByDay.get(key) || [];
+                  const weekday = WEEKDAY_LABELS[day.getDay()];
+                  return (
+                    <button
+                      key={`mobile-${key}`}
+                      onClick={() => {
+                        setSelectedDayKey(key);
+                        setSelectedEventId('');
+                      }}
+                      className={`flex w-full min-h-[44px] items-start gap-3 px-3 py-3 text-left transition ${
+                        isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center pt-0.5" style={{ minWidth: 40 }}>
+                        <span className={`text-lg font-semibold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>
+                          {day.getDate()}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{weekday}</span>
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        {dayEvts.slice(0, 3).map((evt) => {
+                          const isOwn = String(evt.ownerUserId || '').trim().toLowerCase() === resolvedCurrentUserId.toLowerCase();
+                          return (
+                            <div
+                              key={`m-${evt.id}`}
+                              className={`truncate rounded px-2 py-1 text-xs ${
+                                isOwn ? 'bg-blue-50 text-blue-700 font-medium' : 'bg-slate-50 text-slate-500'
+                              }`}
+                            >
+                              {evt.summary}
+                              <span className="ml-2 text-[10px] opacity-70">
+                                {new Date(evt.startTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {dayEvts.length > 3 && (
+                          <p className="text-[10px] text-slate-400">+{dayEvts.length - 3} 条更多</p>
+                        )}
+                      </div>
+                      <span className="rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] text-white">
+                        {dayEvts.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              {monthCells.filter((day) => {
+                const key = toDateKey(day);
+                return day.getMonth() === viewMonth.getMonth() && (eventMapByDay.get(key) || []).length > 0;
+              }).length === 0 && (
+                <div className="px-3 py-6 text-center text-sm text-slate-400">本月暂无日程</div>
+              )}
+            </div>
+            </>
+            )}
           </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -2612,7 +2882,9 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
               </label>
             </div>
 
-            {selectedDayEvents.length === 0 ? (
+            {initialLoading ? (
+              <DayEventsSkeleton />
+            ) : selectedDayEvents.length === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">
                 当前日期暂无事件。点击月历空白格后，右侧会自动切换到新建模式。
               </div>
@@ -2620,29 +2892,41 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
               <div className="space-y-3">
                 {selectedDayEvents.map((event) => {
                   const isActive = selectedEventId === event.id;
+                  const isOwnEvent = String(event.ownerUserId || '').trim().toLowerCase() === resolvedCurrentUserId.toLowerCase();
+                  const canMutateThisEvent = canUserMutateCalendarEvent(event, {
+                    currentUserId: resolvedCurrentUserId,
+                    isAdmin: currentUserIsAdmin,
+                  });
                   return (
                     <button
                       key={`selected-${event.id}`}
                       onClick={() => setSelectedEventId(event.id)}
-                      className={`w-full rounded-lg border p-3 text-left transition ${
+                      className={`schedule-transition w-full rounded-lg border p-3 text-left transition ${
+                        isOwnEvent ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-slate-300'
+                      } ${
                         isActive
                           ? 'border-blue-300 bg-blue-50/70'
                           : 'border-slate-200 bg-slate-50/70 hover:border-blue-200 hover:bg-blue-50/40'
                       }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-900">{event.summary}</p>
-                        {isActive ? (
-                          <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] text-white">已选中</span>
-                        ) : null}
+                        <p className={isOwnEvent ? 'font-semibold text-slate-900' : 'font-normal text-slate-600'}>{event.summary}</p>
+                        <div className="flex items-center gap-1.5">
+                          {!canMutateThisEvent ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-400">只读</span>
+                          ) : null}
+                          {isActive ? (
+                            <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] text-white">已选中</span>
+                          ) : null}
+                        </div>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className={`mt-1 text-xs ${isOwnEvent ? 'text-slate-500' : 'text-slate-400'}`}>
                         {new Date(event.startTime * 1000).toLocaleString()} -{' '}
                         {new Date(event.endTime * 1000).toLocaleString()}
                       </p>
-                      {event.location ? <p className="mt-1 text-xs text-slate-600">地点：{event.location}</p> : null}
-                      {event.description ? <p className="mt-1 text-xs text-slate-600">{event.description}</p> : null}
-                      <p className="mt-1 text-xs text-slate-500">参与人数：{event.attendeesCount}</p>
+                      {event.location ? <p className={`mt-1 text-xs ${isOwnEvent ? 'text-slate-600' : 'text-slate-400'}`}>地点：{event.location}</p> : null}
+                      {event.description ? <p className={`mt-1 text-xs ${isOwnEvent ? 'text-slate-600' : 'text-slate-400'}`}>{event.description}</p> : null}
+                      <p className={`mt-1 text-xs ${isOwnEvent ? 'text-slate-500' : 'text-slate-400'}`}>参与人数：{event.attendeesCount}</p>
                     </button>
                   );
                 })}
@@ -2653,7 +2937,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
           </div>
         </section>
 
-        <aside data-testid="calendar-side-panel" className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+        <aside data-testid="calendar-side-panel" className="hidden md:block space-y-5 xl:sticky xl:top-6 xl:self-start">
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_-24px_rgba(15,23,42,0.8)]">
             <div className="border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-4 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
@@ -2857,7 +3141,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
                       结束时间必须晚于开始时间，且不能与开始时间相同。
                     </p>
                   ) : null}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid grid-cols-2 gap-3${!canMutateSelectedEvent ? ' opacity-40 pointer-events-none' : ''}`}>
                     <button
                       onClick={updateSelectedSchedule}
                       className="rounded-xl bg-amber-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
@@ -2865,14 +3149,26 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
                     >
                       更新当前日程
                     </button>
-                    <button
-                      onClick={cancelSelectedSchedule}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
-                      disabled={loading || !selectedEvent || !canMutateSelectedEvent}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      取消日程
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setDeleteConfirmOpen(true)}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+                        disabled={loading || !selectedEvent || !canMutateSelectedEvent}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        取消日程
+                      </button>
+                      <Popconfirm
+                        open={deleteConfirmOpen && !isMobile}
+                        onConfirm={async () => {
+                          await cancelSelectedSchedule();
+                          setDeleteConfirmOpen(false);
+                        }}
+                        onCancel={() => setDeleteConfirmOpen(false)}
+                        message={`确定要取消「${selectedEvent?.summary || ''}」吗？`}
+                        loading={loading}
+                      />
+                    </div>
                   </div>
                 </>
               )}
@@ -2953,7 +3249,7 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
                   })
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid grid-cols-2 gap-3${!canMutateSelectedEvent ? ' opacity-40 pointer-events-none' : ''}`}>
                 <button
                   onClick={addSelectedAttendeesToSchedule}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
@@ -2979,6 +3275,184 @@ const CalendarManager: React.FC<CalendarManagerProps> = ({ onTaskDataChanged }) 
 
         </aside>
       </div>
+
+      {/* Mobile: floating action button to open create/edit drawer */}
+      {isMobile && (
+        <button
+          onClick={() => setMobileDrawerOpen(true)}
+          className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700"
+          aria-label={selectedEvent ? '编辑日程' : '创建日程'}
+        >
+          {selectedEvent ? <PencilLine className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+        </button>
+      )}
+
+      {/* Mobile: BottomDrawer for create/edit form */}
+      <BottomDrawer
+        open={isMobile && mobileDrawerOpen}
+        onClose={() => setMobileDrawerOpen(false)}
+        title={selectedEvent ? `编辑：${selectedEvent.summary}` : `新建：${selectedDayKey}`}
+      >
+        <div className="space-y-4">
+          {!selectedEvent ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">日程标题</label>
+                <input
+                  value={scheduleComposer.summary}
+                  onChange={(event) => setScheduleComposer((prev) => ({ ...prev, summary: event.target.value }))}
+                  placeholder="例如：客户回访、周会"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">日程说明</label>
+                <textarea
+                  value={scheduleComposer.description}
+                  onChange={(event) => setScheduleComposer((prev) => ({ ...prev, description: event.target.value }))}
+                  placeholder="补充说明（可选）"
+                  className="min-h-[88px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">地点</label>
+                <input
+                  value={scheduleComposer.location}
+                  onChange={(event) => setScheduleComposer((prev) => ({ ...prev, location: event.target.value }))}
+                  placeholder="地点（可选）"
+                  className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-500">开始时间</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleComposer.startAt}
+                    onChange={(event) => setScheduleComposer((prev) => ({ ...prev, startAt: event.target.value }))}
+                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-500">结束时间</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleComposer.endAt}
+                    onChange={(event) => setScheduleComposer((prev) => ({ ...prev, endAt: event.target.value }))}
+                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+              {composerHasInvalidTimeRange && (
+                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  结束时间必须晚于开始时间。
+                </p>
+              )}
+              <button
+                onClick={async () => { await createMySchedule(); setMobileDrawerOpen(false); }}
+                className="min-h-[44px] w-full rounded-xl bg-blue-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-60"
+                disabled={loading || composerHasInvalidTimeRange}
+              >
+                {loading ? '创建中...' : `为 ${selectedDayKey} 创建日程`}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">日程标题</label>
+                <input
+                  value={scheduleEditor.summary}
+                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, summary: event.target.value }))}
+                  className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  disabled={loading || !canMutateSelectedEvent}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">日程说明</label>
+                <textarea
+                  value={scheduleEditor.description}
+                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, description: event.target.value }))}
+                  className="min-h-[88px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  disabled={loading || !canMutateSelectedEvent}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500">地点</label>
+                <input
+                  value={scheduleEditor.location}
+                  onChange={(event) => setScheduleEditor((prev) => ({ ...prev, location: event.target.value }))}
+                  className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                  disabled={loading || !canMutateSelectedEvent}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-500">开始时间</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleEditor.startAt}
+                    onChange={(event) => setScheduleEditor((prev) => ({ ...prev, startAt: event.target.value }))}
+                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                    disabled={loading || !canMutateSelectedEvent}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-500">结束时间</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleEditor.endAt}
+                    onChange={(event) => setScheduleEditor((prev) => ({ ...prev, endAt: event.target.value }))}
+                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
+                    disabled={loading || !canMutateSelectedEvent}
+                  />
+                </div>
+              </div>
+              {editorHasInvalidTimeRange && (
+                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  结束时间必须晚于开始时间。
+                </p>
+              )}
+              {selectedEventReadonlyHint && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  {selectedEventReadonlyHint}
+                </p>
+              )}
+              {canMutateSelectedEvent && (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={async () => { await updateSelectedSchedule(); setMobileDrawerOpen(false); }}
+                    className="min-h-[44px] rounded-xl bg-amber-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-60"
+                    disabled={loading || editorHasInvalidTimeRange}
+                  >
+                    {loading ? '更新中...' : '更新日程'}
+                  </button>
+                  <button
+                    onClick={() => { setMobileDrawerOpen(false); setDeleteConfirmOpen(true); }}
+                    className="min-h-[44px] rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-60"
+                    disabled={loading}
+                  >
+                    取消日程
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </BottomDrawer>
+
+      {/* Mobile: Action Sheet for delete confirmation */}
+      <MobileActionSheet
+        open={isMobile && deleteConfirmOpen}
+        onConfirm={async () => {
+          await cancelSelectedSchedule();
+          setDeleteConfirmOpen(false);
+        }}
+        onCancel={() => setDeleteConfirmOpen(false)}
+        message={`确定要取消日程「${selectedEvent?.summary || ''}」吗？此操作不可撤销。`}
+        loading={loading}
+      />
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 };

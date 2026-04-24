@@ -87,3 +87,86 @@
     background: #94a3b8;
   }
 }
+
+/* Skeleton Screen 骨架屏动画 */
+@layer utilities {
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .skeleton-pulse {
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+/* Toast 通知滑入动画 */
+@layer utilities {
+  @keyframes toast-slide-in {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes toast-slide-out {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(100%); opacity: 0; }
+  }
+}
+
+/* 日程操作过渡动画 — 仅在用户未请求减少动画时启用 */
+@media (prefers-reduced-motion: no-preference) {
+  .schedule-transition {
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+
+  .schedule-enter {
+    animation: schedule-fade-in 200ms ease both;
+  }
+
+  .schedule-exit {
+    animation: schedule-fade-out 200ms ease both;
+  }
+
+  .toast-enter {
+    animation: toast-slide-in 200ms ease both;
+  }
+
+  .toast-exit {
+    animation: toast-slide-out 150ms ease both;
+  }
+
+  @keyframes schedule-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes schedule-fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-4px); }
+  }
+}
+
+/* 删除淡出动画 — 需求 9.9 要求 200ms 淡出 */
+@media (prefers-reduced-motion: no-preference) {
+  .delete-fade-out {
+    animation: delete-fade-out 200ms ease both;
+  }
+
+  @keyframes delete-fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+}
+
+/* 减少动画偏好 — 禁用所有自定义动画 */
+@media (prefers-reduced-motion: reduce) {
+  .schedule-transition,
+  .schedule-enter,
+  .schedule-exit,
+  .toast-enter,
+  .toast-exit,
+  .delete-fade-out {
+    animation: none !important;
+    transition: none !important;
+  }
+}

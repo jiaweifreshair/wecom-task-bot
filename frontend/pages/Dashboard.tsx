@@ -4,6 +4,7 @@ import { ClipboardList, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import { KPIStats, Task, TaskStatus } from '../types';
 import { useTranslation } from '../contexts/LanguageContext';
+import { formatDateTime } from '../utils/display';
 
 interface DashboardProps {
   tasks: Task[];
@@ -177,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, kpi }) => {
                       <span className="mx-1">{actionText}</span>
                       <span className="font-medium text-blue-600">{task.title}</span>
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">{new Date(task.startTime).toLocaleString()}</p>
+                    <p className="text-xs text-slate-400 mt-1">{formatDateTime(task.startTime)}</p>
                   </div>
                 </div>
               );

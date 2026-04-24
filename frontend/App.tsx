@@ -31,31 +31,39 @@ import {
   type BackendTaskKpi,
   type BackendTaskRow,
 } from './api';
+import {
+  normalizeText,
+  formatDateTime,
+  mapTaskStatus as mapTaskStatusIdentity,
+  buildTaskKpi,
+  isDataStale,
+} from './utils/display';
 
 type View = 'DASHBOARD' | 'TASKS' | 'CALENDAR' | 'TEAM' | 'SETTINGS';
 
 const mapTaskStatus = (status: string): TaskStatus => {
+  // 直接使用后端 status 字段，禁止前端推断（需求 10.1）
   if (status === TaskStatus.PENDING) {
-    return TaskStatus.PENDING;
+    return mapTaskStatusIdentity(TaskStatus.PENDING);
   }
   if (status === TaskStatus.WAITING_VERIFY) {
-    return TaskStatus.WAITING_VERIFY;
+    return mapTaskStatusIdentity(TaskStatus.WAITING_VERIFY);
   }
   if (status === TaskStatus.COMPLETED) {
-    return TaskStatus.COMPLETED;
+    return mapTaskStatusIdentity(TaskStatus.COMPLETED);
   }
-  return TaskStatus.REJECTED;
+  return mapTaskStatusIdentity(TaskStatus.REJECTED);
 };
 
 const mapTaskRowToTask = (row: BackendTaskRow): Task => {
   return {
     id: row.id,
     wecomScheduleId: row.wecom_schedule_id,
-    title: row.title || '未命名任务',
+    title: normalizeText(row.title, '未命名任务'),
     description: row.description || '',
     creator: {
       id: row.creator_userid || 'unknown-manager',
-      name: row.creator_userid || '未知发起人',
+      name: normalizeText(row.creator_userid, '未知发起人'),
       avatar: '',
       role: 'MANAGER',
       platformRole: 'ADMIN',
@@ -65,7 +73,7 @@ const mapTaskRowToTask = (row: BackendTaskRow): Task => {
     },
     executor: {
       id: row.executor_userid || 'unknown-executor',
-      name: row.executor_userid || '未知执行人',
+      name: normalizeText(row.executor_userid, '未知执行人'),
       avatar: '',
       role: 'EXECUTOR',
       platformRole: 'EXECUTOR',
@@ -88,14 +96,7 @@ const mapTaskRowToTask = (row: BackendTaskRow): Task => {
 };
 
 const mapKpi = (kpi: BackendTaskKpi): KPIStats => {
-  return {
-    totalTasks: Number(kpi.total_tasks || 0),
-    completionRate: Number(kpi.completion_rate || 0),
-    waitingAcceptance: Number(kpi.waiting_verify_tasks || 0),
-    overdueTasks: Number(kpi.overdue_tasks || 0),
-    dueSoonTasks: Number(kpi.due_soon_tasks || 0),
-    onTimeRate: Number(kpi.on_time_rate || 0),
-  };
+  return buildTaskKpi(kpi);
 };
 
 const emptyKpi: KPIStats = {
@@ -130,6 +131,7 @@ const MainApp: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [qrLoginUrl, setQrLoginUrl] = useState<string>(() => buildQrLoginUrl());
   const [qrLoading, setQrLoading] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number>(0);
   const { t, language, setLanguage } = useTranslation();
 
   const canViewDashboard = Boolean(user?.menuPermissions.includes('DASHBOARD'));
@@ -154,6 +156,7 @@ const MainApp: React.FC = () => {
       const response = await getTasks();
       setTasks((response.tasks || []).map(mapTaskRowToTask));
       setKpi(mapKpi(response.kpi || ({} as BackendTaskKpi)));
+      setLastFetchedAt(Date.now());
     } catch (error) {
       console.error(error);
       setTasks([]);
@@ -177,6 +180,25 @@ const MainApp: React.FC = () => {
       setKpi(emptyKpi);
     }
   }, [user, loadTasks]);
+
+  // 数据过期静默刷新（需求 10.6）
+  // 页面切换返回时检查数据是否过期（> 30s），过期则静默刷新
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && lastFetchedAt > 0 && isDataStale(lastFetchedAt)) {
+        loadTasks({ background: true });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, lastFetchedAt, loadTasks]);
 
   useEffect(() => {
     if (!user) {

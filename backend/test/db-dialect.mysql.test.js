@@ -59,6 +59,48 @@ test('mysql 模式应把 sqlite 时间函数转换为兼容语法', () => {
   assert.doesNotMatch(transformedSql, /datetime\(updated_at\)/i);
 });
 
+test('mysql 模式应把 datetime 时间偏移转换为 DATE_ADD/DATE_SUB', () => {
+  const sql = `
+    SELECT * FROM tasks
+    WHERE end_time <= datetime('now', '+24 hour')
+      AND start_time >= datetime('now', '-2 hour')
+  `;
+
+  const transformedSql = transformSqlForClient(sql, 'mysql');
+
+  assert.match(transformedSql, /DATE_ADD\(CURRENT_TIMESTAMP, INTERVAL 24 HOUR\)/i);
+  assert.match(transformedSql, /DATE_SUB\(CURRENT_TIMESTAMP, INTERVAL 2 HOUR\)/i);
+  assert.doesNotMatch(transformedSql, /datetime\(/i);
+});
+
+test('mysql 模式应在同一条 SQL 中正确处理多种 SQLite 语法', () => {
+  const sql = `
+    INSERT INTO tasks (
+      wecom_schedule_id, start_time, end_time, status, updated_at
+    ) VALUES (
+      ?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'), ?, datetime('now')
+    )
+  `;
+
+  const transformedSql = transformSqlForClient(sql, 'mysql');
+
+  assert.match(transformedSql, /FROM_UNIXTIME\(\?\)/i);
+  assert.match(transformedSql, /CURRENT_TIMESTAMP/i);
+  assert.doesNotMatch(transformedSql, /datetime\(/i);
+
+  // 应有两个 FROM_UNIXTIME(?) 和一个 CURRENT_TIMESTAMP
+  const fromUnixCount = (transformedSql.match(/FROM_UNIXTIME\(\?\)/gi) || []).length;
+  const timestampCount = (transformedSql.match(/CURRENT_TIMESTAMP/gi) || []).length;
+  assert.equal(fromUnixCount, 2);
+  assert.equal(timestampCount, 1);
+});
+
+test('sqlite 模式不应做任何转换', () => {
+  const sql = `SELECT * FROM tasks WHERE updated_at > datetime('now', '-1 hour')`;
+  const transformedSql = transformSqlForClient(sql, 'sqlite');
+  assert.equal(transformedSql, sql);
+});
+
 test('mysql 模式建表语句应使用 AUTO_INCREMENT 与可建索引的主键类型', () => {
   const statements = buildSchemaStatements('mysql');
   const tasksSql = statements.find((item) => item.tableName === 'tasks');

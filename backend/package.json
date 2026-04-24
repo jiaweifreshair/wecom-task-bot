@@ -25,6 +25,7 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
+    "fast-check": "^4.7.0",
     "nodemon": "^3.0.1"
   }
 }
